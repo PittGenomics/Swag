@@ -1,0 +1,3 @@
+ID dir
+ERR000525.filt.SE.small.sorted analysis/ERR000525_SE_small/
+ERR000524_PE.small.sorted analysis/ERR000524_PE_small/

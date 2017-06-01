@@ -55,4 +55,5 @@ if __name__ == "__main__":
    genomeContigs = readData(args.genomeContigs)
 
    samples = readcsv(args.samples, headers='implicit', delimiter=' ')
-   print(samples)
+   results = run_sequence(samples, genomeContigs)
+   print("Done with workflow")

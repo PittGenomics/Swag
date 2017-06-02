@@ -38,6 +38,49 @@ def readcsv(filename, headers=None, delimiter='|'):
    return list(reader)
 
 
+
+
+def run_all(samples, genomeContigs):
+   ''' run_all is the top level function
+   It takes a list of samples, and the genomeContigs as args
+   ''' 
+   for sample in samples:
+      
+      # INPUT - Unaligned input files (including read groups)
+      inBam     = "{0}/{1}.bam".format(sample['dir'], sample['ID'])
+
+      ## Read group bams
+      # reads in the data file containing read group names
+      sampleRGs = readData("{0}/RGfiles.txt".format(sample['dir']))
+      print("SampleRGs : ", sampleRGs)
+      # Map all of the read group strings to a file array
+      
+      # File array of RG bams to be used by mergesort
+      RGalnBams  = {};
+      
+      for idx, sampleRG  in enumerate(sampleRGs):
+
+         # root file name for the RG
+         RGID    = sampleRG.rsplit('/', 1)[1].strip('.bam')
+         RGname  = RGID.rsplit('.', 1)[1]
+         print("RGID    : ", RGID)
+         print("RGname  : ", RGname)
+
+         RGalnBam  =  "{0}/{1}.aln.bam".format(sample['dir'], RGID)
+         RGalnBai  =  "{0}/{1}.aln.bam.bai".format(sample['dir'], RGID)
+         RGalnLog  =  "{0}/{1}.aln.log".format(sample['dir'], RGID)
+         
+         x = bio.BwaMem (inBam, RGname, RGID, sample['dir'], outputs=[RGalnBam, RGalnBai, RGalnLog],
+                         stdout='{0}.out.txt'.format(RGID), stderr='{0}.out.txt'.format(RGID))
+         print(x)
+         # Map realigned file to an array
+         RGalnBams[idx] = x
+
+   for item in RGalnBams:
+      print(RGalnBams[item][0].result())
+
+      
+
 if __name__ == "__main__":
 
    parser   = argparse.ArgumentParser()
@@ -55,5 +98,5 @@ if __name__ == "__main__":
    genomeContigs = readData(args.genomeContigs)
 
    samples = readcsv(args.samples, headers='implicit', delimiter=' ')
-   results = run_sequence(samples, genomeContigs)
+   results = run_all(samples, genomeContigs)
    print("Done with workflow")

@@ -7,9 +7,33 @@ from execution import dfk
 
 from parsl import *
 
+AppPaths = { 'BwaMem' : '/share/swiftseq/run/wrappers/BwaMem.sh',
+             'BwaAln' : '/share/swiftseq/run/wrappers/BwaAln.sh',
+             'RgMergeSort' : '/share/swiftseq/run/wrappers/RgMergeSort.sh',
+             'PicardMarkDuplicates' : '/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh',
+             'PlatypusGerm' : '/share/swiftseq/run/wrappers/PlatypusGerm.sh',
+             'IndexBam' : '/share/swiftseq/run/wrappers/IndexBam.sh'
+           }
+
+_AppPaths = { 'BwaMem' : 'echo',
+              'BwaAln' : 'echo',
+              'RgMergeSort' : 'echo',
+              'PicardMarkDuplicates' : 'echo',
+              'PlatypusGerm' : 'echo',
+              'IndexBam' : 'echo'
+          }
+
 @App('bash', dfk)
-def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None, outputs=[], stdout=None, stderr=None):
+def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None, 
+           outputs=[], stdout=None, stderr=None):
     cmd_line = 'sleep 3; echo {f_inbam} {outputs[0]} {sampleID} {d_dir};'
+
+# bwaMem (does Bam2Fastq)
+@App('bash', dfk)
+def BwaMem(inBam, RGname, sampleID, dirpath, outputs=[], stdout=None, stderr=None):
+    #cmd_line = 'echo {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+    cmd_line = '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+
 
 '''
 # NOT CURRENTLY FUNCTIONAL wrapper needs adjustment mosaikAlnBam2FastqWrapper
@@ -22,10 +46,6 @@ app (file logFile, file outBam, file outBamBai) BwaAln (file inBam, file readGro
 	BwaAln filename(inBam) filename(outBam) filename(readGroupStr) filename(logFile) sampleID dir;
 }
 
-# bwaMem (does Bam2Fastq)
-app (file logFile, file outBam, file outBamBai) BwaMem (file inBam, string RGname, string sampleID, string dir) {
-	BwaMem filename(inBam) filename(outBam) RGname filename(logFile) sampleID dir;
-}
 
 # mergeSort for read group files
 app (file logFile, file [] outBams, file sampleContigs) RgMergeSort (file [] inBam, string sampleID, string dir) {

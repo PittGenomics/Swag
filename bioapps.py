@@ -31,8 +31,22 @@ def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None,
 # bwaMem (does Bam2Fastq)
 @App('bash', dfk)
 def BwaMem(inBam, RGname, sampleID, dirpath, outputs=[], stdout=None, stderr=None):
-    #cmd_line = 'echo {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
-    cmd_line = '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+    cmd_line = 'echo {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+    #cmd_line = '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+
+@App('bash', dfk)
+def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None):
+    '''
+    inputs : RGalnBams
+    outputs : [alnSampleContigBamFile, alnSampleBamLog, alnSampleContigBams....]
+    
+    '''
+    inBams = ' '.join([i.filename for i in inputs])
+    #cmd_line = '''
+    #/share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s
+    #''' % inBams
+    cmd_line = 'echo "Args : " {outputs[0]} {outputs[1]} {0} {1} %s' % inBams
+
 
 
 '''

@@ -30,26 +30,68 @@ def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None,
 
 # bwaMem (does Bam2Fastq)
 @App('bash', dfk)
-def BwaMem(inBam, RGname, sampleID, dirpath, outputs=[], stdout=None, stderr=None):
-    cmd_line = 'echo {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
-    #cmd_line = '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+def BwaMem(inBam, RGname, sampleID, dirpath, outputs=[], stdout=None, stderr=None, mock=False):
+    if mock == True:
+        cmd_line = 'echo {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+    else:
+        cmd_line = '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
 
 @App('bash', dfk)
-def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None):
+def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
     '''
     inputs : RGalnBams
     outputs : [alnSampleContigBamFile, alnSampleBamLog, alnSampleContigBams....]
     
     '''
+
     inBams = ' '.join([i.filename for i in inputs])
-    #cmd_line = '''
-    #/share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s
-    #''' % inBams
-    cmd_line = 'echo "Args : " {outputs[0]} {outputs[1]} {0} {1} %s' % inBams
+    if mock == True:
+        cmd_line = 'echo "Args : " {outputs[0]} {outputs[1]} {0} {1} %s' % inBams
+    else:
+        cmd_line = '/share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
+
+@App('bash', dfk)
+def PicardMarkDuplicates (inBam, sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
+    '''
+    outputs = [file logFile, file outBam, file outBamMetrics]
+    '''
+    if mock == True:
+        cmd_line = 'echo "/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}"'
+    else:
+        cmd_line = '/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}'
+
+
+
+@App('bash', dfk)
+def PlatypusGerm (inBam,inBamIndex, sampleID, dirpath, coords, outputs=[], stdout=None, stderr=None, mock=False):
+    '''
+    outputs = [file logFile, file outVcf]
+    '''
+    if mock == True:
+        cmd_line = 'echo "/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};"'
+    else:
+        cmd_line = '/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};'
+
+@App('bash', dfk)
+def IndexBam (inBam, outputs=[], stdout=None, stderr=None, mock=False):
+    '''
+    outputs = [file logFile, file outIndex]
+    '''
+    if mock == True:
+        cmd_line = 'echo "/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};"'
+    else:
+        cmd_line = '/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};'
 
 
 
 '''
+### Obtain index
+app (file logFile, file outIndex) IndexBam (file inBam) {
+	IndexBam filename(inBam) filename(outIndex) filename(logFile);
+}
+
+
+
 # NOT CURRENTLY FUNCTIONAL wrapper needs adjustment mosaikAlnBam2FastqWrapper
 app (file logFile, file outBam, file outBamBai) Mosaik (file inBam, file readGroupStr, string sampleID, string dir) {
 	Mosaik filename(inBam) filename(outBam) filename(logFile) sampleID dir;
@@ -71,10 +113,6 @@ app (file logFile, file outBam, file outBamGrp) GatkBqsr (file inBam, string sam
 	GatkBqsr filename(inBam) filename(outBam) filename(logFile) filename(outBamGrp) sampleID dir;
 }
 
-# Mark duplicates
-app (file logFile, file outBam, file outBamMetrics) PicardMarkDuplicates (file inBam, string sampleID, string dir) {
-	PicardMarkDuplicates filename(inBam) filename(outBam) filename(logFile) filename(outBamMetrics) sampleID dir;
-}
 
 # flagstat
 app (file logFile, file outStats) SamtoolsFlagstat (file inBam, string sampleID, string dir) {

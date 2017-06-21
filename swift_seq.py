@@ -70,8 +70,8 @@ def BwaMem (sample, sampleRG, inBam, mock=False):
    # root file name for the RG
    RGID    = sampleRG.rsplit('/', 1)[1].strip('.bam')
    RGname  = RGID.rsplit('.', 1)[1]
-   print("RGID    : ", RGID)
-   print("RGname  : ", RGname)
+   #print("RGID    : ", RGID)
+   #print("RGname  : ", RGname)
 
    RGalnBam  =  "{0}/{1}.aln.bam".format(sample['dir'], RGID)
    RGalnBai  =  "{0}/{1}.aln.bam.bai".format(sample['dir'], RGID)
@@ -98,14 +98,14 @@ def RgMergeSort (sample, RGalnBams, mock=False):
    App_Future, Data_Future (for the bam file)
 
    '''
-   print ("Launching RgMergesort for : {0}".format(sample))
-   print ("Sample['dir'] : ", sample['dir'])
-   print ("stdout : ", '{0}/RgMergeSort.stdout'.format(sample['dir']))
+   #print ("Launching RgMergesort for : {0}".format(sample))
+   #print ("Sample['dir'] : ", sample['dir'])
+   #print ("stdout : ", '{0}/RgMergeSort.stdout'.format(sample['dir']))
    # Mergesort the readgroups from this sample
    alnSampleContigBamFile = "{0}/sampleContigs.txt".format(sample['dir'])
    alnSampleContigBams = readData("{0}/sampleContigs.txt".format(sample['dir']))
       
-   print("alnSampleContigBams[0] :", alnSampleContigBams[0])
+   #print("alnSampleContigBams[0] :", alnSampleContigBams[0])
    alnSampleBamLog = "{0}/{1}.RGmerge.log".format(sample['dir'], sample['ID'])
       
    app_fu, data_fus = bio.RgMergeSort (sample['ID'], sample['dir'], inputs=RGalnBams,
@@ -214,7 +214,8 @@ def run_all(samples, genomeContigs, mock=False):
       PlatypusGermContigVcfs = []
       contigBams = {}
       contigBamsIndex = {}
-      
+
+      # Processed (genotyping ready) contig bams will be stored here      
       for idx, contigName in enumerate(genomeContigs) :
          
          print("inBam: {0} \n ContigName: {1}", fu_alnSampleContigBams[idx], contigName)
@@ -227,10 +228,11 @@ def run_all(samples, genomeContigs, mock=False):
          ref_path = "/share/swiftseq/run/analysis/Reference/contig_segments_{0}.txt"
          contigSegments = readData(ref_path.format(contigName))
 
+         index_fu, index_data_fus = IndexBam (contigDupBam, mock=mock)
+         contigDupBamBaiLog, contigDupBamBai = index_data_fus
+
          for contigSegment in contigSegments :
 
-            index_fu, index_data_fus = IndexBam (contigDupBam, mock=mock)
-            contigDupBamBaiLog, contigDupBamBai = index_data_fus
                
             plat_fu, plat_data_fu = PlatypusGerm(contigName, contigSegment, 
                                                  sample, contigDupBam, 
@@ -238,11 +240,57 @@ def run_all(samples, genomeContigs, mock=False):
             plat_log, plat_ContigVcfs = plat_data_fu
             PlatypusGermContigVcfs.extend([plat_ContigVcfs])
 
+         contigBams[contigName] = contigDupBam;
+         contigBamsIndex[contigName] = contigDupBamBai;
+
+      # End of contig loop
+      
+      cms_fu, cms_data_fu = ContigMergeSort (contigBams, sample, mock=mock)
+      
+      
+      '''
+      # Cat together the PlatypusGerm contig vcf files
+      file PlatypusGermMergedVcf <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".merged.PlatypusGerm.vcf")>;
+      file PlatypusGermMergedVcfLog <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".merged.PlatypusGerm.log")>;
+      (PlatypusGermMergedVcfLog,PlatypusGermMergedVcf) = ConcatVcf (PlatypusGermContigVcfs,sample.ID,sample.dir);
+
+      # Flagstat on the geno-ready aligned bam (genoMergeBam)
+      file flagstatLog <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".bam.flagstat.log")>;
+      file flagstat <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".bam.flagstat")>;
+      (flagstatLog,flagstat) = SamtoolsFlagstat (genoMergeBam,sample.ID,sample.dir);
+      
+      # Per base coverage on the geno-ready aligned bam (genoMergeBam)
+      file perBaseCoverageLog <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".bam.perBaseCoverage.log")>;
+      file perBaseCoverage <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".bam.perBaseCoverage")>;
+      (perBaseCoverageLog,perBaseCoverage) = BamutilPerBaseCoverage (genoMergeBam,sample.ID,sample.dir);
+      '''
+   # End of sample loop
+
    # Done
    for item in RGalnBams:
       print(item.result())
       
-      
+def ContigMergeSort (contigBams, sample, mock=False):
+   ''' IndexBam : Convenience function that wraps IndexBam
+   Args:
+   contigDupBam : Name of contigDupBam
+   '''
+   # Mergesort the geno contig bams
+
+   genoMergeBamIndex = "{0}/{1}.geno.merged.bam.bai".format(sample['dir'],sample['ID'])
+   genoMergeBam = "{0}/{1}.geno.merged.bam".format(sample['dir'],sample['ID'])
+   genoMergeLog = "{0}/{1}.geno.merged.log".format(sample['dir'],sample['ID'])
+   
+   app_fu, data_fus = bio.ContigMergeSort (sample['ID'],
+                                           sample['dir'],
+                                           inputs=contigBams.values(),
+                                           outputs=[genoMergeLog,
+                                                    genoMergeBam,
+                                                    genoMergeBamIndex],
+                                           mock=mock)
+                                           
+   return app_fu, data_fus
+
 
 if __name__ == "__main__":
 
@@ -263,3 +311,5 @@ if __name__ == "__main__":
    samples = readcsv(args.samples, headers='implicit', delimiter=' ')
    results = run_all(samples, genomeContigs, mock=True)
    print("Done with workflow")
+
+   print(dfk)

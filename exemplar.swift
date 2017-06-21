@@ -195,7 +195,6 @@ string genomeContigs [] = readData("analysis/Reference/contigs.txt");
 Sample samples [] = readData(strcat("analysis/individuals.txt"));
 foreach sample, sampleIndex in samples {
 
-
 	# INPUT - Unaligned input files (including read groups)
 	file inBam <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".bam")>;
 

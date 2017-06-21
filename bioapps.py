@@ -25,8 +25,15 @@ _AppPaths = { 'BwaMem' : 'echo',
 
 @App('bash', dfk)
 def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None, 
-           outputs=[], stdout=None, stderr=None):
-    cmd_line = 'sleep 3; echo {f_inbam} {outputs[0]} {sampleID} {d_dir};'
+           outputs=[], stdout=None, stderr=None, mock=False):
+    '''
+    outputs = [file logFile, file outBam, file outBamBai]
+    '''
+    if mock == True:
+        cmd_line = 'sleep 3; echo {f_inbam} {outputs[0]} {sampleID} {d_dir};'
+    else:
+        cmd_line = 'Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}';
+        
 
 # bwaMem (does Bam2Fastq)
 @App('bash', dfk)
@@ -81,6 +88,35 @@ def IndexBam (inBam, outputs=[], stdout=None, stderr=None, mock=False):
         cmd_line = 'echo "/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};"'
     else:
         cmd_line = '/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};'
+
+'''
+### mergeSort for scatter-gathered contigs
+app (file logFile, file outBam, file outBamBai) ContigMergeSort (file[string] inBams, string sampleID, string dir) {
+ContigMergeSort filename(outBam) filename(logFile) sampleID dir filenames(inBams);
+}
+'''
+
+@App('bash', dfk)
+def ContigMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
+    '''
+    outputs = [file logFile, file outBam, file outBamBai]
+    '''
+
+    inBams = ' '.join([i.filename for i in inputs])
+    
+    if mock == True:
+        cmd_line = '''echo "/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
+        {outputs[0]} \
+        {0} \
+        {1} \ 
+        %s "''' % inBams
+
+    else:
+        cmd_line = '''/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
+        {outputs[0]} \
+        {0} \
+        {1} \ 
+        %s ''' % inBams
 
 
 

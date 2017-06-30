@@ -78,7 +78,7 @@ def PlatypusGerm (inBam,inBamIndex, sampleID, dirpath, coords, outputs=[], stdou
         cmd_line = 'echo "/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};"'
     else:
         cmd_line = '/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};'
-
+        
 @App('bash', dfk)
 def IndexBam (inBam, outputs=[], stdout=None, stderr=None, mock=False):
     '''
@@ -118,6 +118,33 @@ def ContigMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stde
         {1} \ 
         %s ''' % inBams
 
+@App('bash', dfk)
+def ConcatVcf (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
+    '''
+### concat vcf files
+app (file logFile, file outVcf) ConcatVcf (file [auto] vcfFiles, string sampleID, string dir) {
+    ConcatVcf filename(outVcf) filename(logFile) sampleID dir filenames(vcfFiles);
+}
+
+    outputs = [file logFile, file outIndex]
+    '''
+    vcfs = ' '.join([i.filename for i in inputs])
+
+    if mock == True:
+        cmd_line = '''echo "/share/swiftseq/run/wrappers/ConcatVcf.sh {outputs[1]} \
+        {outputs[0]} \
+        {0} \
+        {1} \
+        %s"
+        ''' % vcfs
+
+    else:
+        cmd_line = '''/share/swiftseq/run/wrappers/ConcatVcf.sh {outputs[1]} \
+        {outputs[0]} \
+        {0} \
+        {1} \
+        %s
+        ''' % vcfs
 
 
 '''

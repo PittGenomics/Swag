@@ -77,8 +77,6 @@ def BwaMem (sample, sampleRG, inBam, mock=False):
    RGalnBai  =  "{0}/{1}.aln.bam.bai".format(sample['dir'], RGID)
    RGalnLog  =  "{0}/{1}.aln.log".format(sample['dir'], RGID)
          
-   print("Writing stdout to :", '{0}.out.txt'.format(RGID))
-   print("Writing stderr to :", '{0}.err.txt'.format(RGID))
    fu_app, fu_data = bio.BwaMem (inBam, RGname, RGID, sample['dir'], 
                                  outputs=[RGalnBam, RGalnBai, RGalnLog],
                                  stdout='{0}.out.txt'.format(RGID), 
@@ -182,7 +180,7 @@ def PlatypusGerm (contigName, contigSegment, sample, contigDupBam, contigDupBamB
    return app_fu, data_fus
    
 def BamutilPerBaseCoverage (genoMergeBam, sample, mock=False):
-   ''' SamtoolsFlagstat : Convenience function that wraps SamtoolsFlagstat
+   ''' BamutilPerBaseCoverage : Convenience function that wraps BamutilPerBaseCoverage
    Args:
    contigDupBam : Name of contigDupBam
    # Per base coverage on the geno-ready aligned bam (genoMergeBam)
@@ -194,11 +192,12 @@ def BamutilPerBaseCoverage (genoMergeBam, sample, mock=False):
    # Per base coverage on the geno-ready aligned bam (genoMergeBam)
    perBaseCoverageLog = "{0}/{1}.bam.perBaseCoverage.log".format(sample['dir'], sample['ID'])
    perBaseCoverage = "{0}/{1}.bam.perBaseCoverage".format(sample['dir'],sample['ID'])
-   app_fu, data_fus = BamutilPerBaseCoverage (genoMergeBam,
-                                              sample['ID'],
-                                              sample['dir'],
-                                              outputs=[perBaseCoverageLog,perBaseCoverage],
-                                              mock=mock)   
+   app_fu, data_fus = bio.BamutilPerBaseCoverage (genoMergeBam,
+                                                  sample['ID'],
+                                                  sample['dir'],
+                                                  outputs=[perBaseCoverageLog,perBaseCoverage],
+                                                  mock=mock)
+ 
    return app_fu, data_fus
 
 
@@ -217,12 +216,11 @@ def SamtoolsFlagstat (genoMergeBam, sample, mock=False):
    # Flagstat on the geno-ready aligned bam (genoMergeBam)
    flagstatLog = "{0}/{1}.bam.flagstat.log".format(sample['dir'], sample['ID'])
    flagstat = "{0}/{1}.bam.flagstat ".format(sample['dir'], sample['ID'])
-   app_fu, data_fus = SamtoolsFlagstat (genoMergeBam,
-                                        sample['ID'],
-                                        sample['dir'],
-                                        outputs=[flagstatLog,flagstat],
-                                        mock=mock)
-
+   app_fu, data_fus = bio.SamtoolsFlagstat (genoMergeBam,
+                                            sample['ID'],
+                                            sample['dir'],
+                                            outputs=[flagstatLog,flagstat],
+                                            mock=mock)
    return app_fu, data_fus
 
       
@@ -279,21 +277,33 @@ def run_all(samples, genomeContigs, mock=False):
    contigBamsIndex = {}
    for sample in samples:
       
+      print("Processing sample : {0}".format(sample))
+      
       # INPUT - Unaligned input files (including read groups)
       inBam     = "{0}/{1}.bam".format(sample['dir'], sample['ID'])
 
       # reads in the data file containing read group names
+      print("Reading : ", "{0}/RGfiles.txt".format(sample['dir']))
       sampleRGs = readData("{0}/RGfiles.txt".format(sample['dir']))
       
       # File array of RG bams to be used by mergesort
-      RGalnBams  = [];      
+      RGalnBams  = [];
+
+      print("Launching BwaMem on ",sampleRGs)
+
       for idx, sampleRG  in enumerate(sampleRGs):
          fu_app, fu_bam = BwaMem(sample, sampleRG, inBam, mock=mock)
          # Map realigned file to an array
          RGalnBams.extend([fu_bam])
 
+      # Debugging
+      for bam in RGalnBams:
+         print("Waiting on bam file from BwaMem : ", bam.filepath)
+         print("Done : ", bam.result())
+
       # Do MergeSort
       merge_fu, merge_data_fus = RgMergeSort(sample, RGalnBams, mock=mock)
+      print("Result of RgMergeSort : ", merge_fu.result())
 
       _,_, *fu_alnSampleContigBams  = merge_data_fus
 
@@ -306,7 +316,7 @@ def run_all(samples, genomeContigs, mock=False):
       # Processed (genotyping ready) contig bams will be stored here      
       for idx, contigName in enumerate(genomeContigs) :
          
-         print("inBam: {0} \n ContigName: {1}", fu_alnSampleContigBams[idx], contigName)
+         print("inBam: {0} \nContigName: {1}".format(fu_alnSampleContigBams[idx].filepath, contigName))
          picard_fu, picard_data_fus = PicardMarkDuplicates (fu_alnSampleContigBams[idx],
                                                             sample, 
                                                             contigName,
@@ -338,9 +348,11 @@ def run_all(samples, genomeContigs, mock=False):
 
       sf_fu, sf_data_fu = SamtoolsFlagstat (cms_data_fu[1], sample, mock=mock)
 
-      bbc_fu, bbc_data_fu = BamutilPerBaseCoverage (cmd_data_fu[1], sample, mock=mock);
+      bbc_fu, bbc_data_fu = BamutilPerBaseCoverage (cms_data_fu[1], sample, mock=mock);
    # End of sample loop
 
+   print("DEBUG : Waiting on end of RGalnBams results")
+   return
    # Done
    for item in RGalnBams:
       print(item.result())
@@ -353,6 +365,7 @@ if __name__ == "__main__":
    parser.add_argument("-v", "--verbose", default="DEBUG", help="set level of verbosity, DEBUG, INFO, WARN")
    parser.add_argument("-l", "--logfile", default="swift_seq.log", help="Logfile")
    parser.add_argument("-s", "--samples", default="analysis/individuals.txt", help="Individual samples")
+   parser.add_argument("-m", "--mock", action="store_true", help="Enable running with mock applications that only echo commands")
    parser.add_argument("-g", "--genomeContigs", default="analysis/Reference/contigs.txt",
                        help="Reference genome contigs")
    args   = parser.parse_args()
@@ -364,7 +377,5 @@ if __name__ == "__main__":
    genomeContigs = readData(args.genomeContigs)
 
    samples = readcsv(args.samples, headers='implicit', delimiter=' ')
-   results = run_all(samples, genomeContigs, mock=False)
+   results = run_all(samples, genomeContigs, mock=args.mock)
    print("Done with workflow")
-
-   print(dfk)

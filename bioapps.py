@@ -30,7 +30,7 @@ def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None,
     outputs = [file logFile, file outBam, file outBamBai]
     '''
     if mock == True:
-        cmd_line = 'sleep 3; echo {f_inbam} {outputs[0]} {sampleID} {d_dir};'
+        cmd_line = 'echo "Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}"';
     else:
         cmd_line = 'Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}';
         
@@ -39,7 +39,7 @@ def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None,
 @App('bash', dfk)
 def BwaMem(inBam, RGname, sampleID, dirpath, outputs=[], stdout=None, stderr=None, mock=False):
     if mock == True:
-        cmd_line = 'echo {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+        cmd_line = 'echo /share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
     else:
         cmd_line = '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
 
@@ -53,7 +53,7 @@ def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=N
 
     inBams = ' '.join([i.filename for i in inputs])
     if mock == True:
-        cmd_line = 'echo "Args : " {outputs[0]} {outputs[1]} {0} {1} %s' % inBams
+        cmd_line = 'echo /share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
     else:
         cmd_line = '/share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
 
@@ -145,6 +145,45 @@ app (file logFile, file outVcf) ConcatVcf (file [auto] vcfFiles, string sampleID
         {1} \
         %s
         ''' % vcfs
+
+@App('bash', dfk)
+def SamtoolsFlagstat (genoMergeBam, sampleID, sampleDir, outputs=[], stdout=None, stderr=None, mock=False):
+    '''
+    outputs = [file flagstatLog, file flagstat]
+    SamtoolsFlagstat filename(inBam) filename(outStats) filename(logFile) sampleID dir;
+    '''
+
+    if mock == True:
+        cmd_line = '''echo "/share/swiftseq/run/wrappers/SamtoolsFlagstat.sh {0} {outputs[1]} \
+        {outputs[0]} \
+        {1} \
+        {2}"'''
+
+    else:
+        cmd_line = '''/share/swiftseq/run/wrappers/SamtoolsFlagstat.sh {0} {outputs[1]} \
+        {outputs[0]} \
+        {1} \
+        {2}'''
+
+@App('bash', dfk)
+def BamutilPerBaseCoverage(genoMergeBam, sampleID, sampleDir, outputs=[], stdout=None, stderr=None, mock=False):
+    '''
+    outputs = [file flagstatLog, file flagstat]
+    BamutilPerBaseCoverage filename(inBam) filename(outCov) filename(logFile) sampleID dir;
+    '''
+
+    if mock == True:
+        cmd_line = '''echo "/share/swiftseq/run/wrappers/BamutilPerBaseCoverage.sh {0} {outputs[1]} \
+        {outputs[0]} \
+        {1} \
+        {2}"'''
+
+    else:
+        cmd_line = '''echo "/share/swiftseq/run/wrappers/BamutilPerBaseCoverage.sh {0} {outputs[1]} \
+        {outputs[0]} \
+        {1} \
+        {2}"'''
+
 
 
 '''

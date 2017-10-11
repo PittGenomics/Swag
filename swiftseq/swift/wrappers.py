@@ -1,0 +1,3534 @@
+import os
+import stat
+
+""" The section contains functions that will print out the various wrappers
+needed for SwiftSeq computations. Each will take various params such as
+algorith executables, reference files, and parameter strings that are
+needed for the underlying algorithms to run """
+
+# TODO - look into adding a random number to the tmp dirs - currentl there
+#		is a possibility for conflicts
+
+# Each wrapper has a fixed output name
+# Names of the wrappers present in functions below
+# Swift function names should be the same minus the ...'.sh'
+"""
+GatkIndelRealn.sh
+GatkBqsrGrp.sh
+GatkBqsrPrint.sh
+GatkBqsrGrpReduce.sh
+BamUtilRgSplit.sh
+Flagstat.sh
+PicardMarkDuplicates.sh
+GetCoverage.sh
+Novosort.sh
+ConcatVcf.sh
+SamtoolsParseContig.sh
+DellyCaller.sh
+SnpEff.sh
+BwaAlnBam2fastq.sh
+PlatypusGerm.sh
+HaplotypeCaller.sh
+"""
+
+
+EXECUTABLE_BITS = 73  # 0b001001001
+
+
+def eof_check(check_filename_variable):
+    """Will take a file variable name and will
+    print bash code that will check the file for a valid EOF marker
+    If the EOF marker is present just let the wrapper exit on own.
+    Do not force an exit since other checks may occur afer the EOF
+    check"""
+
+    return ('# Check to see if the bam file has an EOF marker\n'
+            'if [ `echo \\`tail -n 1 $' + check_filename_variable + ' | hexdump -ve \'1/1 "%.2x"\'\\` | '
+            'tail -c56` == "f8b08040000000000ff0600424302001b0003000000000000000000" ] ; then\n'
+            '\techo "EOF GOOD" >> $logFile 2>&1\n'
+            'else\n'
+            '\techo "EOF BAD" >> $logFile 2>&1\n'
+            '\texit 1\n'
+            'fi')
+
+
+def no_mapped_reads_check(in_file, out_files):
+    """File from map-reduce steps may carry no data. This is indicated by
+    the string 'no_mapped_reads'. This must be caught within the wrappers
+    to know when not to exit the algorithm required by the wrapper and
+    subsequently exit gracefully. Given and input and output file variable
+    name we create a string of bash code that will check for the 'no_mapped_reads'
+    string and will print this to the output file if present (to propagate
+    the checking behavior)
+
+    Will take array with multiple output files"""
+
+
+    return ('# Check for empty files/no data here\n'
+            'if [ "$(head -1 $' + in_file + ')" == "no_mapped_reads" ]; then\n'
+            '\techo "$' + in_file + ' contains no mapped reads... exiting" >> $logFile 2>&1\n'
+            + ''.join(['\techo no_mapped_reads > ${}\n'.format(o) for o in out_files]) +
+            '\trm -rf $tmpDir\n'
+            '\texit 0\n'
+            'else\n'
+            '\techo "$' + in_file + ' contains mapped reads... continuing" >> $logFile 2>&1\n'
+            'fi')
+
+
+def get_broken_symlink_check_str(variableName):
+    """Will take a file variable name and will print bash code that will
+    check if the symlink for that file is broken
+
+    This seems to be helping with files not being staged out properly.
+    Likely will not be necessary in bug fixed versions of Swift
+
+    Do not force an exit since other checks may occur afer the symlink
+    check"""
+
+    return ('# See if the symlink is orphaned... if so exit 1\n'
+            'if [ ! -e $' + variableName + ' ] ; then\n'
+            '\techo "$' + variableName + ' symlink good" >> $logFile 2>&1\n'
+            'else\n'
+            '\techo "$' + variableName + ' symlink broken" >> $logFile 2>&1\n'
+            '\texit 1\n'
+            'fi\n\n')
+
+
+def bam_indexing(samtools, variable_name):
+    """Will take a file variable name and a samtools path and will print
+    bash code that will create a bam index using samtools """
+
+    return ('# Indexing\n'
+            + samtools + ' index $' + variable_name + ' >> $logFile 2>&1')
+
+
+def hostname_info():
+    """ Will return a string of bash code that will initialize a log file
+    with the hostname where that particular job is being run"""
+
+    return 'echo Running on... $(hostname) &> $logFile'
+
+
+def gatk_contig_check():
+    """ For Gatk contig style wrappers. Will create a bash sctring to
+    determine if the contig is 'unmapped' and if so will set the contig
+    param accordingly """
+
+    return ('# Check for the unmapped as the contig\n'
+            '# If not, write no_mapped_reads to outBam\n'
+            'if [ "$contig" == "unmapped" ]; then\n'
+            '\tcontigParam=""\n'
+            'else\n'
+            '\tcontigParam="-L $contig"\n'
+            'fi')
+
+
+def skip_unknown_chr():
+    """Necessary for various genotyping steps"""
+
+    return ('if [ "$coords" == "unmapped:no_mapped_reads" ]; then\n'
+            '\techo "Input is the unmapped bam... exiting" >> $logFile\n'
+            '\techo no_mapped_reads > $outVcf\n'
+            '\texit 0\n'
+            'else\n'
+            '\techo "Input is not the unmapped bam... continuing" >> $logFile 2>&1\n'
+            'fi')
+
+
+# def get_novosort_string(novosort, numThreads, memMegaBytes, tmpDirVar, outBamVar, inBamVar):
+#     """ sss"""
+#
+#     return (novosort + ' --threads ' + numThreads + ' --ram ' + memMegaBytes + 'M --tmpcompression 6 '
+#             '--tmpdir $' + tmpDirVar + ' --output $' + outBamVar + ' --index $' + inBamVar + ' >> $logFile 2>&1\n\n')
+#
+#
+# def get_read_group_string(samtools, inBamVar):
+#     """Will print the bash command that will extract a given read group string
+#     from a
+#
+#     THIS HAS SOME ALTERATIONS FROM THE ORIGINAL AND SHOULD BE TESTED """
+#
+#     return ('$(' + samtools + ' view -H $' + inBamVar + ' 2>> $logFile | '
+#             'grep "@RG"| sed "s:\\t:\\\\t:g"| sed "s:\\t:\\\\t:g"\n')
+#
+#
+# def paired_wrapper_setup():
+#     ''' When production is initiated the debug statements can be removed or
+#     there could be a conditional'''
+#
+#     return ('sourceTumor=$(pwd)/$inTumor\n'
+#             'sourceNormal=$(pwd)/$inNormal\n\n'
+#
+#             '# Debug ##\n'
+#             'echo "original tumorIn: $inTumor" >> $logFile 2>&1\n'
+#             'echo "origianl normalIn: $inNormal" >> $logFile 2>&1\n'
+#             'echo $(pwd) >> $logFile 2>&1\n'
+#             '##########\n\n'
+#
+#             '# Files will be symlinked we can use thier basenames as paths\n'
+#             'inTumor=$(basename $inTumor)\n'
+#             'inNormal=$(basename $inNormal)\n\n'
+#
+#             'cd $dir\n\n'
+#
+#             '# Symlink tumor files since they are not in the dir\n'
+#             '# This should make them available in the dir\n'
+#             'ln -s $sourceTumor $tumorIn\n'
+#             'ln -s $sourceNormal $normalIn\n'
+#
+#             '# Debug ##\n'
+#             'echo "sourceTumor: $sourceTumor" >> $logFile 2>&1\n'
+#             'echo "sourceNormal: $sourceNormal" >> $logFile 2>&1\n'
+#             'echo "inTumor: $inTumor" >> $logFile 2>&1\n'
+#             'echo "inNormal: $inNormal" >> $logFile 2>&1\n'
+#             'echo $(ls -lh) >> $logFile 2>&1\n'
+#             'echo $(pwd) >> $logFile 2>&1\n'
+#             '##########\n\n')
+
+
+###############################################
+# Common sanity checks for multiple wrappers
+###############################################
+
+def getEofCheckStr(variableName):
+    """Will take a file variable name and will
+    print bash code that will check the file for a valid EOF marker
+    If the EOF marker is present just let the wrapper exit on own.
+    Do not force an exit since other checks may occur afer the EOF
+    check"""
+
+    return ('# Check to see if the bam file has an EOF marker\n'
+            'if [ `echo \\`tail -n 1 $' + variableName + ' | hexdump -ve \'1/1 "%.2x"\'\\` | '
+            'tail -c56` == "f8b08040000000000ff0600424302001b0003000000000000000000" ] ; then\n'
+            '\techo "EOF GOOD" >> $logFile 2>&1\n'
+            'else\n'
+            '\techo "EOF BAD" >> $logFile 2>&1\n'
+            '\texit 1\n'
+            'fi\n\n')
+
+
+def getNoMappedReadsStrCheck(inFile, outFiles):
+    """File from map-reduce steps may carry no data. This is indicated by
+    the string 'no_mapped_reads. This must be caught within the wrappers
+    to know when not to exit the algorithm required by the wrapper and
+    sebsequently exit gracefully. Given and input and output file variable
+    name we create a string of bash code that will check for the 'no_mapped-reads'
+    string and will print this to the output file if present (to propogate
+    the checking behavior)
+
+    Will take array with multiple output files"""
+
+    noMappedCat = ''
+    for outFile in outFiles:
+        noMappedCat = noMappedCat + '\techo no_mapped_reads > $' + outFile + '\n'
+
+    return ('# Check for empty files/no data here\n'
+            'if [ "$(head -1 $' + inFile + ')" == "no_mapped_reads" ]; then\n'
+            '\techo "$' + inFile + ' contains no mapped reads... exiting" >> $logFile 2>&1\n'
+            + noMappedCat +
+            '\trm -rf $tmpDir\n'
+            '\texit 0\n'
+            'else\n'
+            '\techo "$' + inFile + ' contains mapped reads... continuing" >> $logFile 2>&1\n'
+            'fi\n\n')
+
+
+def getBrokenSymlinkCheckStr(variableName):
+    """Will take a file variable name and will print bash code that will
+    check if the symlink for that file is broken
+
+    This seems to be helping with files not being staged out properly.
+    Likely will not be necessary in bug fixed versions of Swift
+
+    Do not force an exit since other checks may occur afer the symlink
+    check"""
+
+    return ('# See if the symlink is orphaned... if so exit 1\n'
+            'if [ ! -e $' + variableName + ' ] ; then\n'
+            '\techo "$' + variableName + ' symlink good" >> $logFile 2>&1\n'
+            'else\n'
+            '\techo "$' + variableName + ' symlink broken" >> $logFile 2>&1\n'
+            '\texit 1\n'
+            'fi\n\n')
+
+
+def getBamIndexingString(samtools, variableName):
+    """Will take a file variable name and a samtools path and will print
+    bash code that will create a bam index using samtools """
+
+    return ('# Indexing\n'
+            + samtools + ' index $' + variableName + ' >> $logFile 2>&1\n\n')
+
+
+def getHostnameString():
+    """ Will return a string of bash code that will initialize a log file
+    with the hostname where that particular job is being run"""
+
+    return 'echo Running on... $(hostname) &> $logFile\n\n'
+
+
+def getGatkContigCheckString():
+    """ For Gatk contig style wrappers. Will create a bash sctring to
+    determine if the contig is 'unmapped' and if so will set the contig
+    param accordingly """
+
+    return ('# Check for the unmapped as the contig\n'
+            '# If not, write no_mapped_reads to outBam\n'
+            'if [ "$contig" == "unmapped" ]; then\n'
+            '\tcontigParam=""\n'
+            'else\n'
+            '\tcontigParam="-L $contig"\n'
+            'fi\n\n')
+
+
+def getSkipUnknownChrString():
+    """Necessary for various genotyping steps"""
+
+    return ('if [ "$coords" == "unmapped:no_mapped_reads" ]; then\n'
+            '\techo "Input is the unmapped bam... exiting" >> $logFile\n'
+            '\techo no_mapped_reads > $outVcf\n'
+            '\texit 0\n'
+            'else\n'
+            '\techo "Input is not the unmapped bam... continuing" >> $logFile 2>&1\n'
+            'fi\n\n')
+
+
+def getNovosortString(novosort, numThreads, memMegaBytes, tmpDirVar, outBamVar, inBamVar):
+    """ sss"""
+
+    return (novosort + ' --threads ' + numThreads + ' --ram ' + memMegaBytes + 'M --tmpcompression 6 '
+            '--tmpdir $' + tmpDirVar + ' --output $' + outBamVar + ' --index $' + inBamVar + ' >> $logFile 2>&1\n\n')
+
+
+def getReadGroupString(samtools, inBamVar):
+    """Will print the bash command that will extract a given read group string
+    from a
+
+    THIS HAS SOME ALTERATIONS FROM THE ORIGINAL AND SHOULD BE TESTED """
+
+    return ('$(' + samtools + ' view -H $' + inBamVar + ' 2>> $logFile | '
+            'grep "@RG"| sed "s:\\t:\\\\t:g"| sed "s:\\t:\\\\t:g"\n')
+
+
+def pairedWrapperSetup():
+    ''' When production is initiated the debug statements can be removed or
+    there could be a conditional'''
+
+    return ('sourceTumor=$(pwd)/$inTumor\n'
+            'sourceNormal=$(pwd)/$inNormal\n\n'
+
+            '# Debug ##\n'
+            'echo "original tumorIn: $inTumor" >> $logFile 2>&1\n'
+            'echo "origianl normalIn: $inNormal" >> $logFile 2>&1\n'
+            'echo $(pwd) >> $logFile 2>&1\n'
+            '##########\n\n'
+
+            '# Files will be symlinked we can use thier basenames as paths\n'
+            'inTumor=$(basename $inTumor)\n'
+            'inNormal=$(basename $inNormal)\n\n'
+
+            'cd $dir\n\n'
+
+            '# Symlink tumor files since they are not in the dir\n'
+            '# This should make them available in the dir\n'
+            'ln -s $sourceTumor $tumorIn\n'
+            'ln -s $sourceNormal $normalIn\n'
+
+            '# Debug ##\n'
+            'echo "sourceTumor: $sourceTumor" >> $logFile 2>&1\n'
+            'echo "sourceNormal: $sourceNormal" >> $logFile 2>&1\n'
+            'echo "inTumor: $inTumor" >> $logFile 2>&1\n'
+            'echo "inNormal: $inNormal" >> $logFile 2>&1\n'
+            'echo $(ls -lh) >> $logFile 2>&1\n'
+            'echo $(pwd) >> $logFile 2>&1\n'
+            '##########\n\n')
+
+
+########################################
+# Print wrapper functions
+########################################
+# All print wrapper functions will take 'parameters' even if currently no
+# parameters will be passed to that function as an argument
+# This will preserve flexibility for potential changes in the future
+
+def compose_GatkIndelRealignment(app_name, **kwargs):
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = (
+        '#!/bin/bash\n\n'
+
+        'set -e\n\n'
+ 
+        'inBam=$1\n'
+        'outBam=$2\n'
+        'logFile=$3\n'
+        'ID=$4\n'
+        'dir=$5\n'
+        'contig=$6\n\n'
+ 
+        'tmpDir={tmp_dir}/${{ID}}.${{contig}}/GatkRecal\n'
+        'mkdir -p -v $tmpDir\n\n'
+        
+        'export PATH={env_PATH}\n\n'
+        
+        '{hostname_info}\n\n'
+        '{no_mapped_reads_check}\n\n'
+        '{gatk_contig_check}\n\n'
+        '{bam_indexing}\n\n'
+
+        '# Identify suspicious intervals\n'
+        '{exe_java} -Djava.io.tmpdir=$tmpDir {gc_flag} {java_mem} -jar {exe_gatk} '
+        '-I $inBam $contigParam -R {ref_ref} -T RealignerTargetCreator '
+        '-known {ref_indels1kg} -known {ref_indelsMills} '  # Originally the first -known here didn't have a trailing space
+        '-o $intervals  >> $logFile 2>&1\n\n'
+ 
+        '# Perform local realingment using the intervals identified above\n'
+        '{exe_java} -Djava.io.tmpdir=$tmpDir {gc_flag} {java_mem} -jar {exe_gatk} '
+        '-I $inBam $contigParam -R {ref_ref} -T IndelRealigner {app_parameters} -known {ref_indels1kg} '
+        '-known {ref_indelsMills} '
+        '-targetIntervals $intervals -o $outBam >> $logFile 2>&1\n\n'
+ 
+        '# Erase the temporary directory\n'
+        'rm -rf $tmpDir\n\n'
+        
+        '{eof_check}\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper.format(
+            # Recycled bash snippets
+            hostname_info=hostname_info(),
+            no_mapped_reads_check=no_mapped_reads_check('inBam', ['outBam', 'intervals']),
+            gatk_contig_check=gatk_contig_check(),
+            bam_indexing=bam_indexing(exe_config['samtools'], 'inBam'),
+            eof_check=eof_check('outBam'),
+
+            # Specific programs in the configurations
+            exe_java=exe_config['java'],
+            exe_gatk=exe_config['gatk'],
+            ref_ref=ref_config['ref'],
+            ref_indels1kg=ref_config['indels1kg'],
+            ref_indelsMills=ref_config['indelsMills'],
+
+            # Rest of the format args will be in the kwargs
+            **kwargs
+        ),
+        executable=True
+    )
+
+
+def compose_GatkBqsrGrp(app_name, **kwargs):
+    """ NEED TO ADD CONTIG TO THE ACTUAL SWIFT CODE
+
+    ^ Meaning it needs to be passed the name of the contig? """
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outGrp=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n\n'
+
+           'tmpDir=$(pwd)/${ID}.${contig}/GatkRecal\n'
+           'mkdir -p -v $tmpDir\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inBam', ['outGrp']) + '\n\n'
+
+           + gatk_contig_check() + '\n\n'
+
+           + bam_indexing(exe_config['samtools'], 'inBam') + '\n\n'
+
+           '# Do base quality recalibration to produce grp file\n'
+           + exe_config['java'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config[
+               'gatk']
+           + ' -I $inBam -R ' + ref_config['ref'] + ' -T BaseRecalibrator ' + kwargs.get('app_parameters') +
+           ' -knownSites ' + ref_config['dbSnpVcf'] + ' -knownSites ' + ref_config['indelsMills']
+           + ' -knownSites ' + ref_config['indels1kg'] + ' -o $outGrp >> $logFile 2>&1\n\n'
+
+          '# Erase the temporary directory\n'
+          'rm -rf $tmpDir\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_GatkBqsr(app_name, **kwargs):
+    """yep"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'grp=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n\n'
+
+           'tmpDir=$(pwd)/${ID}/GatkBqsrPrint\n'
+           'mkdir -p -v $tmpDir\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inBam', ['outBam']) + '\n\n'
+
+           + bam_indexing(exe_config['samtools'], 'inBam') + '\n\n'
+
+           '# Generate recalibrated bam\n'
+           + exe_config['java'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem')
+           + ' -jar ' + exe_config['gatk'] +
+           ' -I $inBam -R ' + ref_config['ref'] + ' -T PrintReads -BQSR $grp -o $outBam >> \$logFile 2>&1\n\n'
+
+           '# Erase the temporary directory\n'
+           'rm -rf $tmpDir\n\n'
+
+           + eof_check('outBam') + '\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_GatkBqsrGrpReduce(app_name, **kwargs):
+    """Don't allow this wrapper to be altered by users. Should be an
+    under-the-hood process"""
+
+    exe_config = kwargs.get('exe_config')
+    grpReduce_filepath = kwargs.get('util_grpReduce').replace('.class', '')
+    grpReduce_classpath = os.path.dirname(kwargs.get('util_grpReduce'))
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'outGrp=$1\n'
+           'logFile=$2\n'
+           'ID=$3\n'
+           'dir=$4\n'
+           'shift 4\n'
+           '# Load grps into this variable\n'
+           'inGrp=$*\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           'export CLASSPATH=' + exe_config['gatkQueue'] + ':' + grpReduce_classpath + '\n\n'
+
+             '# Will check if bam had data in it\n'
+             '# if it does not the file will not be passed to the reduce grps step\n'
+             'inGrps=""\n'
+             'for file in $inGrp;do\n'
+             '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+             '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+             '\telse\n'
+             '\t\tinGrps=$inGrps" "$file\n'
+             '\tfi\n'
+             'done\n\n'
+    
+             '# reduce grps\n'
+           + exe_config['java'] + ' ' + grpReduce_filepath + ' $outGrp $inGrps >> $logFile 2>&1')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_SamtoolsFlagstat(app_name, **kwargs):
+    """ ff"""
+
+    exe_config = kwargs.get('exe_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outStats=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           '# get flagstats results\n'
+           + exe_config['samtools'] + ' flagstat $inBam 2>> $logFile > $outStats\n\n'
+
+                                   '# Could check for successful completion here')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_IndexBam(app_name, **kwargs):
+    """ ff"""
+    exe_config = kwargs.get('exe_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outIndex=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inBam', ['outIndex']) + '\n\n'
+
+           '# index the bam\n'
+           + exe_config['samtools'] + ' index $inBam 2>> $logFile\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_PicardMarkDuplicates(app_name, **kwargs):
+    """dd"""
+
+    exe_config = kwargs.get('exe_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'logFile=$3\n'
+           'metrics=$4\n'
+           'ID=$5\n'
+           'dir=$6\n\n'
+
+           'tmpDir=$(pwd)/${ID}/PicardMarkDupl\n'
+           'mkdir -p -v $tmpDir\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inBam', ['outBam', 'metrics']) + '\n\n'
+
+           '## Sorting should not be necessary here.. handle in aln wrappers\n\n'
+
+           '## Here need to be sure you are specifying validation stringency in json\n'
+           '## Also need to specify what should be done with duplicates\n'
+           + exe_config['java'] + ' ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config[
+               'markDuplicates'] + ' INPUT=$inBam '
+           'OUTPUT=$outBam METRICS_FILE=$metrics TMP_DIR=$tmpDir ' + kwargs.get('app_parameters') + ' >> $logFile 2>&1\n\n'
+
+          '# Erase the temporary directory\n'
+          'rm -rf $tmpDir\n\n'
+
+           + eof_check('outBam') + '\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_BedtoolsGenomeCoverage(app_name, **kwargs):
+    """heh heh """
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outCov=$2\n'
+           'outDoC=$3\n'
+           'logFile=$4\n'
+           'prefix=$5\n'
+           'dir=$6\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n'
+           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           '# Get coverage via bedtools and grep out genome info\n'
+           + exe_config['genomeCoverageBed'] + ' -ibam $inBam  -g ' + ref_config[
+               'ref'] + ' | grep genome > $outCov 2>> $logFile\n'
+
+           + exe_config['python'] + ' ' + kwargs.get('util_getDoC') + ' $outCov 2>> $logFile > $outDoC\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_RgMergeSort(app_name, **kwargs):
+    """pass in contigs file, parse within wrapper
+
+    No longer checking for EOF marker
+
+    set -e is commented out for now"""
+
+    exe_config = kwargs.get('exe_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           '#set -e\n\n'
+
+           'sampleContigs=$1\n'
+           'logFile=$2\n'
+           'ID=$3\n'
+           'dir=$4\n'
+           '# Be sure this shift is properly picking up all bams\n'
+           'shift 4\n'
+           '# Load all the rest in this variable\n'
+           'inBam=$*\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n'
+           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           'tmpDir=$(pwd)\n\n'
+
+           '# Will check if bam has data in it'
+           '# if it does not the file will be ignored at the Novosort step\n'
+           'inBams=""\n'
+           'for file in $inBam;do\n'
+           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+           '\telse\n'
+           '\t\tinBams=$inBams" "$file\n'
+           '\tfi\n'
+           'done\n\n'
+
+           'absDirName=$(dirname $logFile)\n'
+
+           '# Use Novosort\n'
+           + exe_config['novosort'] + ' --threads ' + str(kwargs.get('max_cores')) + ' --ram ' + str(
+        kwargs.get('max_mem')) + 'M --tmpcompression 6 '
+                      '--tmpdir $tmpDir $inBams 2>> $logFile | ' + exe_config[
+               'bamutil'] + ' splitChromosome --in -.bam --out '
+                            '${absDirName}/${ID}.contig. --noef 2>> $logFile\n\n'
+
+                            '# declare array\n'
+                            'declare -a outBams\n'
+                            '# Load file into array.\n'
+                            'let i=0\n'
+                            'while IFS=$"\n" read -r line_data; do\n'
+                            '\techo Contig file: ${line_data} >> $logFile\n'
+                            '\toutBams[i]="${line_data}"\n'
+                            '\t((++i))\n'
+                            'done < $sampleContigs\n\n'
+
+                            '# Test if the contig files exist... if not echo no_mapped_reads\n'
+                            'for outBam in "${outBams[@]}";do\n'
+                            '\tif [[ ! -s $outBam ]]; then\n'
+                            '\t\techo $outBam: no_mapped_reads >> $logFile 2>&1\n'
+                            '\t\techo no_mapped_reads > $outBam 2>> $logFile\n'
+                            '\telse\n'
+                            '\t\ttrue\n'
+                            '\tfi\n'
+                            'done\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+# TEMPORARY SOLUTION... WILL MAKE FLEXIBLE TO SAMTOOLS AS WELL
+def compose_ContigMergeSort(app_name, **kwargs):
+    """This can potentially be used on contigs as well as read groups... check
+    when actually using Swift"""
+
+    exe_config = kwargs.get('exe_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'outBam=$1\n'
+           'logFile=$2\n'
+           'ID=$3\n'
+           'dir=$4\n'
+           '# Be sure this shift is properly picking up all bams\n'
+           'shift 4\n'
+           '# Load all the rest in this variable\n'
+           'inBam=$*\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n'
+           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           'tmpDir=$(pwd)/${ID}/NovoSortMergeSort\n'
+           'mkdir -p -v $tmpDir\n\n'
+
+           '# Will check if bam has data in it\n'
+           '# if it does not the file will be ignored at the Novosort step\n'
+           'inBams=""\n'
+           'for file in $inBam;do\n'
+           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+           '\telse\n'
+           '\t\tinBams=$inBams" "$file\n'
+           '\tfi\n'
+           'done\n\n'
+
+           '# Use Novosort\n'
+           'echo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
+           + exe_config['novosort'] + ' --threads ' + str(kwargs.get('max_cores')) + ' --ram ' + str(
+        kwargs.get('max_mem')) + 'M --tmpcompression 6 '
+                      '--tmpdir $tmpDir --output $outBam --index $inBams >> $logFile 2>&1\n\n'
+
+           + eof_check('outBam'))
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_ConcatVcf(app_name, **kwargs):
+    """ Uses sortByRef from GATK's Geraldine"""
+
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           '#set -e\n\n'
+
+           'outVcf=$1\n'
+           'logFile=$2\n'
+           'ID=$3\n'
+           'dir=$4\n'
+           'shift 4\n'
+           '# Load all the rest in this variable\n'
+           'contigVcfs=$*\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           '# Will check if file had data in it\n'
+           '# if it does not the file will not be passed to the reduce vcfs step\n'
+           'inVcfs=""\n'
+           'for file in $contigVcfs;do\n'
+           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+           '\telse\n'
+           '\t\tinVcfs=$inVcfs" "$file\n'
+           '\t\theaderVcf=$file\n'
+           '\tfi\n'
+           'done\n\n'
+
+           '#Test if at least one vcf contains variants\n'
+           'if [ "$inVcfs" == "" ]; then\n'
+           '\techo All vcfs contained no_mapped_reads...exiting >> $logFile 2>&1\n'
+           '\techo no_mapped_reads > $outVcf\n'
+           '\texit 0\n'
+           'else\n'
+           '\techo At least one bam contains mapped reads...continuing... >> $logFile 2>&1\n'
+           'fi\n\n'
+
+           'tmpVcf=$(basename $outVcf).tmp\n\n'
+
+           '# Cat vcfs together\n'
+           'cat $inVcfs | grep -v "^#\|^chrom" 2>> $logFile > $tmpVcf\n\n'
+
+           '# Sort Vcf... sed to create proper headers for VarScan vcfs\n'
+           'head -5000 $headerVcf | grep "^#\|^chrom" | sed ":^chrom: s:chrom:#chrom:" 2>> $logFile > $outVcf\n'
+           'perl ' + kwargs.get('util_sortByRef') + ' $tmpVcf ' + ref_config[
+               'ref'] + '.fai 2>> $logFile >> $outVcf\n\n'
+
+                        'echo sorting complete >> $logFile\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_SamtoolsParseContig(app_name, **kwargs):
+    """ ttt"""
+
+    exe_config = kwargs.get('exe_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outBam=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'contig=$7\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           '# Check for the unmapped as the contig\n'
+           'if [ "$contig" == "unmapped" ]; then\n'
+           '\tcontigParam="-f 4"\n'
+           'else\n'
+           '\tcontigParam="$contig"\n'
+           'fi\n\n'
+
+           '# Extract each contig\n'
+           + exe_config['samtools'] + ' view -b $inBam $contigParam 2>> $logFile > $outBam\n\n'
+
+           + eof_check('outBam') +
+
+           '# Look into the bam via samtools view and determine if the file contains\n'
+           '# mapped reads. Could look into making this more efficient\n'
+           'dataString=$(' + exe_config['samtools'] + ' view $outBam | head)\n'
+           'if [[ $? != 0 ]]; then\n'
+           '\techo "Error from samtools view on read check... exiting 1" >> $logFile 2>&1\n'
+           '\texit 1\n'
+           'elif [[ -n $dataString ]]; then\n'
+           '\techo "bam ($outBam) contains mapped reads... exiting 0" >> $logFile 2>&1\n'
+           '\texit 0\n'
+           'else\n'
+           '\techo "No mapped reads found in $outBam" >> $logFile 2>&1\n'
+           '\t# Will subsequently check for header below\n'
+           'fi\n\n'
+
+           '# Looks to see if the outBam has a header\n'
+           'dataString=$(' + exe_config['samtools'] + ' view -H $outBam)\n'
+           'if [[ $? != 0 ]]; then\n'
+           '\techo "Error from samtools view on read check... exiting 1" >> $logFile 2>&1\n'
+           '\texit 1\n'
+           'elif [[ -n $dataString ]]; then\n'
+           '\techo "bam ($outBam) contains a header but no mapped reads..." >> $logFile 2>&1\n'
+           '\techo "$outBam will be populated with no_mapped_reads... exiting 0" >> $logFile 2>&1\n'
+           '\techo "no_mapped_reads" > $outBam\n'
+           '\texit 0\n'
+           'else\n'
+           '\t# Likely should not ever get here\n'
+           '\techo "No header found in $outBam... exiting 1" >> $logFile 2>&1\n'
+           '\texit 1\n'
+           'fi\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_DellyGerm(app_name, **kwargs):
+    """333"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outVcf=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'analysisType=$7\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inBam', ['outVcf']) +
+
+           '# Initialize delly output file... if no struct vars Delly does\n'
+           '# not appear to produce a vcf\n'
+           'echo no_mapped_reads > $outVcf\n\n'
+
+           '# Call with delly\n'
+           + exe_config['delly'] + ' -g ' + ref_config[
+               'ref'] + ' -o $outVcf ' + kwargs.get('app_parameters') + ' -t $analysisType $inBam >> $logFile 2>&1\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_SnpEff(app_name, **kwargs):
+    """Like with a few other wrappers, need to add a random component to
+    the tmp dir generation... otherwise with two callers operating on
+    the same chr there may be removal conflicts at this step"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inVcf=$1\n'
+           'outVcf=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n\n'
+
+           'tmpDir=$(pwd)/${ID}/snpEff\n'
+           'mkdir -p -v $tmpDir\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           '# Check to see if the vcf has data\n'
+           '# If not, write no_mapped_reads to outVcf\n'
+           + no_mapped_reads_check('inVcf', ['outVcf']) +
+
+           'export data_dir=$' + ref_config['snpEffDataDir'] + '\n\n'
+
+                                                            '# Execute snpEff\n'
+           + exe_config['java'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar '
+           + exe_config['snpEff'] + ' -v ' + ref_config['snpEffBuild'] + ' -c ' + ref_config['snpEffConfig'] +
+           ' ' + kwargs.get('app_parameters') + ' $inVcf 2>> $logFile > $outVcf\n\n'
+
+          '# Erase the temporary directory\n'
+          'rm -rf \$tmpDir\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_BwaAln(app_name, **kwargs):
+    """Note that maxCores on the sampe or samse steps assumes that bwa tpx is
+    being used. May need to find a good way of handling this.
+
+    Need to also handle the fact that novosort is not open source... will
+    have to replace this with te multi-threaded version of samtools sort
+
+    Need to change this so tpx is not used
+
+    Removed novosort for scalability
+
+    """
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'readGroupStr=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           '# Expected output here is ${ID}_1.fastq and ${ID}_2.fastq if PE\n'
+           '# If SE the expected output is ${ID}.fastq\n'
+           '# the # in -o will get replaced by _1 and _2\n'
+           + exe_config['bam2fastq'] + ' --force -o ${ID}#.fastq $inBam >> $logFile 2>&1\n\n'
+
+            '\treadGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
+
+            '### Checks for PE output... will align SE vs PE accordingly\n'
+            'alignPrefix=${ID}.bwa.tmp\n'
+            'if [ $(find . -name *${ID}_1.fastq) ]; then\n\n'
+
+            '\t# Aln first end\n'
+            '\t' + exe_config['bwa'] + ' aln ' + kwargs.get('app_parameters') + ' -t ' + str(kwargs.get('max_cores')) + ' ' +
+           ref_config['ref'] + ' ${ID}_1.fastq > ${ID}_1.sai 2>> $logFile\n\n'
+
+            '\t# Aln second end\n'
+            '\t' + exe_config['bwa'] + ' aln ' + kwargs.get('app_parameters') + ' -t ' + str(kwargs.get('max_cores')) + ' ' + ref_config[
+               'ref'] + ' ${ID}_1.fastq > ${ID}_2.sai 2>> $logFile\n\n'
+
+                        '\t# Coordinate pairs via sampe & insert the proper read group info\n'
+                        '\t' + exe_config['bwa'] + ' sampe -P -r "$readGroup" ' + ref_config[
+               'ref'] + ' ${ID}_1.sai ${ID}_2.sai '
+                        '${ID}_1.fastq ${ID}_2.fastq 2>> $logFile | ' + exe_config[
+               'samtools'] + ' view -b - 2>> $logFile | '
+           + exe_config['novosort'] + ' --threads ' + str(int(kwargs.get('max_cores') / 4)) + ' --ram ' + str(
+        int(kwargs.get('max_mem') / 2)) + 'M --tmpcompression 6 '
+                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+
+                          'else\n'
+                          '\t# Aln\n'
+                          '\t' + exe_config['bwa'] + ' aln ' + kwargs.get('app_parameters') + ' -t ' + str(kwargs.get('max_cores')) + ' ' + ref_config[
+               'ref'] + ' ${ID}.fastq > ${ID}.sai 2>> $logFile\n\n'
+
+                        '\t# Inserts the proper read group info & samse step\n'
+                        '\t' + exe_config['bwa'] + ' samse -r $readGroup ' + ref_config['ref'] +
+           ' ${ID}.sai ${ID}.fastq 2>> $logFile | ' + exe_config['samtools'] + ' view -b - 2>> $logFile | '
+           + exe_config['novosort'] + ' --threads ' + str(int(kwargs.get('max_cores') / 4)) + ' --ram ' + str(
+        int(kwargs.get('max_mem')) / 2) + 'M --tmpcompression 6 '
+                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+
+                          'fi\n\n'
+
+           + eof_check('outBam'))
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_PlatypusGerm(app_name, **kwargs):
+    """rrr
+
+    LD_LIBRARY_PATH necessary for Beagle
+    """
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outVcf=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'coords=$7\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n'
+           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inBam', ['outVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# Genotype\n'
+           + exe_config['python'] + ' ' + exe_config[
+               'platypus'] + ' callVariants --nCPU ' + kwargs.get('packing_cores') + ' --output $outVcf '
+                                                                          '--refFile ' + ref_config[
+               'ref'] + ' --regions $coords ' + kwargs.get('app_parameters') + ' --bamFiles $inBam >> $logFile 2>&1\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_ScalpelGerm(app_name, **kwargs):
+    """rrr
+
+    """
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outVcf=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'coords=$7\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inBam', ['outVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# Genotype\n'
+           + exe_config['scalpel'] + ' --single --bam $inBam --bed $coords --numprocs ' + str(
+        int(kwargs.get('packing_cores')) * 2) +
+           ' --ref ' + ref_config['ref'] + ' ' + kwargs.get('app_parameters') + ' > $outVcf 2>> $logFile\n\n'
+
+           '# Move output to proper location\n'
+           'mv ./outdir/variants.*.indel.vcf $outVcf\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_HaplotypeCaller(app_name, **kwargs):
+    """eee
+
+    This is one wrapper that needs a random component to the tmp dir.
+    Could just have coords be involved
+
+    Parallel garbage collection not used here"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outVcf=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'coords=$7\n\n'
+
+           '# Cannot remove tmp dir at end of this script! Other processes\n'
+           '# will be using that dir as tmp\n'
+           'tmpDir=$(pwd)/${ID}/GatkHaplotypeCaller\n'
+           'mkdir -p -v $tmpDir\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inBam', ['outVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# Genotype\n'
+           + exe_config['java'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('ram_pool_mem') + ' -jar ' + exe_config['gatk'] +
+           ' -T HaplotypeCaller -R ' + ref_config['ref'] + ' -I $inBam -L $coords -nct ' + str(int(kwargs.get('packing_cores')) * 2) +
+           ' --dbsnp ' + ref_config['dbSnpVcf'] + ' -o $outVcf ' + kwargs.get('app_parameters') + ' >> $logFile 2>&1\n\n'
+
+             '# TODO - integrate this back in\n'
+             '#rm -r $tmpDir\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_BwaMem(app_name, **kwargs):
+    """ Need to think about how to handle maxcores with bwa
+    Perhaps could use all of them... need to try that now but test other
+    options later... Using bamUtil bam2fastq now...
+
+    Currently not removing the tmp dir used by novosort... remember this
+    still needs to be flexible to novosort vs samtools"""
+
+    # String literal to fix backslash issues
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'RGname=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n'
+           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
+
+             'tmpDir=$(pwd)/${ID}/NovoSortBwa\n'
+             'mkdir -p -v $tmpDir\n\n'
+
+           + hostname_info() + '\n\n'
+
+           '# Get read group string... could make this cleaner\n'
+           'readGroup=$(' + exe_config[
+               'samtools'] + ' view -H $inBam 2>> $logFile | grep "@RG"| grep $RGname | sed "s:\t:\\t:g" | sed "s:\t:\\t:g")\n\n'
+
+                 'echo Read group: $RGname >> $logFile\n\n'
+
+                 '# Will default to PE... is wc -l > 0 then a PE run will be initated\n'
+                 'numPairedReads=$(' + exe_config[
+               'samtools'] + ' view -b -r $RGname -f 0x1 $inBam | head -25000 | wc -l)\n\n'
+
+                             'if [ "$numPairedReads" -gt "0" ]; then\n'
+           + ('\t' * 1) + 'echo File $inBam appears to contain PAIRED END fastq data... >> $logFile\n'
+           + ('\t' * 1) + 'echo Extracting and aligning PAIRED END data... >> $logFile\n\n'
+
+           + ('\t' * 1) + 'fastq1=${ID}_1.fastq\n'
+           + ('\t' * 1) + 'fastq2=${ID}_2.fastq\n\n'
+
+           + ('\t' * 1) + '# Paired end data... rm existing and make named pipes\n'
+           + ('\t' * 1) + 'rm -f $fastq1\n'
+           + ('\t' * 1) + 'rm -f $fastq2\n\n'
+           + ('\t' * 1) + 'mkfifo $fastq1\n'
+           + ('\t' * 1) + 'mkfifo $fastq2\n\n'
+
+           + ('\t' * 1) + '# Unpaired fastq will be discarded into /dev/null\n'
+           + ('\t' * 1) + exe_config['samtools'] + ' view -b -r $RGname $inBam 2>> $logFile | '
+           + exe_config['bamutil'] + ' bam2FastQ --in -.bam --noeof --firstOut $fastq1 --secondOut '
+                                  '$fastq2 --unpairedOut /dev/null 2>> $logFile &\n\n'
+
+           + ('\t' * 1) + '# Aln PE -M by default for Picard compatibility\n'
+           + ('\t' * 1) + exe_config['bwa'] + ' mem ' + kwargs.get('app_parameters') + ' -M -t ' + str(kwargs.get('max_cores')) + ' -R "$readGroup" ' +
+           ref_config['ref'] +
+           ' $fastq1 $fastq2 2>> $logFile | ' + exe_config['samtools'] + ' view -b - 2>> $logFile | '
+           + exe_config['novosort'] + ' --threads ' + str(int(kwargs.get('max_cores') / 4)) + ' --ram ' + str(
+        int(kwargs.get('max_mem')) / 2) + 'M --tmpcompression 6 '
+                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+
+           + ('\t' * 1) + '# remove fifo variables/objects\n'
+           + ('\t' * 1) + 'rm $fastq1\n'
+           + ('\t' * 1) + 'rm $fastq2\n\n'
+
+                          'else\n'
+           + ('\t' * 1) + '#Will be single end\n'
+           + ('\t' * 1) + 'echo File $inBam appears to contain SINGLE END fastq data... >> $logFile\n'
+           + ('\t' * 1) + 'echo Extracting and aligning SINGLE END data... >> $logFile\n\n'
+
+           + ('\t' * 1) + 'fastq=${ID}.fastq\n\n'
+
+           + ('\t' * 1) + '# Single end data... make named pipes\n'
+           + ('\t' * 1) + 'rm -f $fastq\n\n'
+           + ('\t' * 1) + 'mkfifo $fastq\n\n'
+
+           + ('\t' * 1) + '# end 1 and end 2 fastq will be discarded into /dev/null\n'
+           + ('\t' * 1) + exe_config['samtools'] + ' view -b -r $RGname $inBam 2>> $logFile | '
+           + exe_config['bamutil'] + ' bam2FastQ --in -.bam --noeof --firstOut /dev/null --secondOut '
+                                  '/dev/null --unpairedOut $fastq 2>> $logFile &\n\n'
+
+           + ('\t' * 1) + exe_config['bwa'] + ' mem ' + kwargs.get('app_parameters') + ' -M -t ' + str(kwargs.get('max_cores')) + ' -R "$readGroup" ' +
+           ref_config['ref'] +
+           ' $fastq 2>> $logFile | ' + exe_config['samtools'] + ' view -b - 2>> $logFile | '
+           + exe_config['novosort'] + ' --threads ' + str(int(kwargs.get('max_cores')) / 4) + ' --ram ' + str(
+            int(kwargs.get('max_mem')) / 2) + 'M --tmpcompression 6 '
+                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+
+           + ('\t' * 1) + '# remove fifo variables/objects\n'
+           + ('\t' * 1) + 'rm $fastq\n\n'
+
+                          'fi\n\n'
+
+           + eof_check('outBam'))
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_DellyPaired(app_name, **kwargs):
+    """ Could multi-thread this with the statically linked parallel
+    version of Delly. It parallelizes by samples so num threads = 2
+
+    Parallel var set... just need the parallel statically linked binary"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'analysisType=$9\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           'export OMP_NUM_THREADS=2\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inTumor', ['outVcf']) + '\n\n'
+
+           + no_mapped_reads_check('inNormal', ['outVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# Initialize delly output file... if no struct vars Delly does\n'
+           '# not appear to produce a vcf\n'
+           'echo no_mapped_reads > $outVcf\n\n'
+
+           '# Call with delly\n'
+           + exe_config['delly'] + ' -g ' + ref_config['ref'] + ' -o $outVcf ' + kwargs.get('app_parameters') +
+           ' -t $analysisType $inTumor $inNormal >> $logFile 2>&1\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_PlatypusPaired(app_name, **kwargs):
+    """ Fill this in
+
+    LD_LIBRARY_PATH necessary for Beagle"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'coords=$9\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n'
+           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inTumor', ['outVcf']) + '\n\n'
+
+           + no_mapped_reads_check('inNormal', ['outVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# Genotype\n'
+           + exe_config['python'] + ' ' + exe_config[
+               'platypus'] + ' callVariants --nCPU ' + kwargs.get('packing_cores') + ' --output $outVcf '
+                                                                          '--refFile ' + ref_config[
+               'ref'] + ' --regions $coords ' + kwargs.get('app_parameters') + ' --bamFiles $inTumor $inNormal >> $logFile 2>&1\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_Mutect(app_name, **kwargs):
+    """ Need to be sure this is the proper way to specify coords in mutect.
+    Determine if multi-threading can work for mutect and if the memory set here
+    is appropriate"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'coords=$9\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inTumor', ['outVcf']) + '\n\n'
+
+           + no_mapped_reads_check('inNormal', ['outVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# Genotype\n'
+           + exe_config['java'] + ' ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config['mutect'] +
+           ' --analysis_type MuTect --reference_sequence ' + ref_config['ref'] +
+           ' --cosmic ' + ref_config['cosmic'] + ' --dbsnp ' + ref_config['dbSnpVcf'] +
+           ' -L $coords --input_file:normal $inNormal --input_file:tumor $inTumor'
+           ' --vcf $outVcf --coverage_file ${ID}.coverage.wig.txt >> $logFile 2>&1\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_ScalpelPaired(app_name, **kwargs):
+    """Currently written to only return variants that are determined to
+    be somatic by scalpel (i.e. will not give germline variants"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'coords=$9\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inTumor', ['outVcf']) + '\n\n'
+
+           + no_mapped_reads_check('inNormal', ['outVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# Genotype\n'
+           + exe_config['scalpel'] + ' --somatic --normal $inNormal --tumor '
+                                  '$inTumor --bed $coords --ref ' + ref_config['ref'] + ' --numprocs ' + str(
+        int(kwargs.get('packing_cores')) * 2) +
+           ' ' + kwargs.get('app_parameters') + ' > $outVcf 2>> $logFile\n\n'
+
+          '# Move output to proper location\n'
+          'mv ./outdir/main/somatic.*.indel.vcf $outVcf\n\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_MpileupPaired(app_name, **kwargs):
+    ''' Uses the multi-allelic caller by default '''
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'coords=$9\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inTumor', ['outVcf']) + '\n\n'
+
+           + no_mapped_reads_check('inNormal', ['outVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# Genotype\n'
+           + exe_config['samtools'] + ' mpileup -r $coords -u ' + kwargs.get('app_parameters') + ' -f '
+           + ref_config['ref'] + ' $inTumorIn $inNormal | ' + exe_config['bcftools'] +
+           ' call -m -O v 2>> $logFile > $outVcf')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_Varscan(app_name, **kwargs):
+    ''' Will automatically call snps and indels. They will be cat into the
+    same file. in addtion, mpileup with default params is used to generate
+    the pileup files '''
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+    tmp = '/tmp/' if kwargs.get('worker_has_tmp') else ''
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'snvVcf=$5\n'
+           'indelVcf=$6\n'
+           'logFile=$7\n'
+           'ID=$8\n'
+           'dir=$9\n'
+           'coords=${10}\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inTumor', ['snvVcf', 'indelVcf']) + '\n\n'
+
+           + no_mapped_reads_check('inNormal', ['snvVcf', 'indelVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           '# create names for each pileup\n'
+           'tPileup=' + tmp + '${ID}.tumor.pileup\n'
+          'nPileup=' + tmp + '${ID}.normal.pileup\n\n'
+
+             '# Commands will be executed simultaneously\n'
+           + exe_config['samtools'] + ' mpileup -r $coords -f ' + ref_config['ref'] + ' $inTumor 2>> $logFile > $tPileup &\n'
+
+           + exe_config['samtools'] + ' mpileup -r $coords -f ' + ref_config['ref'] + ' $inNormal 2>> $logFile > $nPileup\n\n'
+
+            '# Check if either pileup is empty\n'
+            'if [ -s $tPileup ]\n'
+            'then\n'
+            '\techo $tPileup is NOT of zero size >> $logFile\n'
+            'else\n'
+            '\techo $tPileup is of zero size...exiting >> $logFile\n'
+            '\techo no_mapped_reads >> $snvVcf\n'
+            '\techo no_mapped_reads >> $indelVcf\n'
+            '\texit 0\n'
+            'fi\n\n'
+    
+            'if [ -s $nPileup ]\n'
+            'then\n'
+            '\techo $nPileup is NOT of zero size >> $logFile\n'
+            'else\n'
+            '\techo $nPileup is of zero size...exiting >> $logFile\n'
+            '\techo no_mapped_reads >> $snvVcf\n'
+            '\techo no_mapped_reads >> $indelVcf\n'
+            '\texit 0\n'
+            'fi\n\n'
+
+            '# Genotype - outfile will be local\n'
+           + exe_config['java'] + ' -jar ' + exe_config['varscan'] + ' somatic ' + kwargs.get('app_parameters') +
+           ' $nPileup $tPileup $ID 2>> $logFile\n\n'
+
+           '# Move to the proper vcf files\n'
+           'cp ${ID}.snp $snvVcf 2>> $logFile\n'
+           'cp ${ID}.indel $indelVcf 2>> $logFile\n'
+
+           '# rm pileup files\n'
+           'rm -f $tPileup\n'
+           'rm -f $nPileup\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_SamtoolsExtractRg(app_name, **kwargs):
+    """ Fill this in """
+
+    exe_config = kwargs.get('exe_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           '## Will get RG ID from outfile\n'
+           'outBam=$2\n'
+           'readGroupStr=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'RGname=$7\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           'RGID=$(basename $outBam | rev | cut -f 2 -d "." | rev)\n\n'
+
+           'echo RGname: $RGname >> $logFile\n\n'
+
+           '# get RG header info...\n'
+           'echo $(' + exe_config['samtools'] + ' view -H $inBam 2>> $logFile | grep ^@RG | grep $RGname | '
+             'sed "s:\\t:\\t:g" | sed "s:\\t:\\t:g" | sed "s: :_:g") > $readGroupStr 2>> $logFile\n'
+
+             '# extract read group then add proper header\n'
+           + exe_config['samtools'] + ' view -b -r $RGname $inBam > $outBam 2>> $logFile\n\n'
+
+               '#Check EOF\n'
+           + eof_check('outBam'))
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_BamutilPerBaseCoverage(app_name, **kwargs):
+    """ Make this more flexible later... for now just have the cov stats
+    being written to temp, then gzip back """
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'perBaseCov=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n'
+
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           'tmpPerBaseCov=${ID}.perBaseCov.tmp\n\n'
+
+           '# remove and then create named pipe\n'
+           'rm -f $tmpPerBaseCov\n'
+           'mkfifo $tmpPerBaseCov\n\n'
+
+           '# Generate per base coverage and stream into cut\n'
+           + exe_config['bamutil'] + ' stats --cBaseQC $tmpPerBaseCov --regionsList ' + ref_config[
+               'regions'] + ' --in $inBam 2>> $logFile &\n\n'
+
+            'cut -f 1-3,11,16-17 $tmpPerBaseCov 2>> $logFile | gzip > $perBaseCov 2>> $logFile\n\n'
+
+            'rm $tmpPerBaseCov\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+def compose_Strelka(app_name, **kwargs):
+    """ need to print and pass strelka config file...
+
+    Might need to run on a per chrom basis (not region)"""
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    write_strelka_config(
+        config_path=os.path.join(kwargs.get('out_dir'), 'strelkaConfig.ini'),
+        parameters=kwargs.get('app_parameters')
+    )
+
+    wrapper = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'snvVcf=$5\n'
+           'indelVcf=$6\n'
+           'config=$7\n'
+           'logFile=$8\n'
+           'ID=$9\n'
+           'dir=${10}\n\n'
+
+           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+
+           + hostname_info() + '\n\n'
+
+           + no_mapped_reads_check('inTumor', ['snvVcf', 'indelVcf']) + '\n\n'
+
+           + no_mapped_reads_check('inNormal', ['snvVcf', 'indelVcf']) + '\n\n'
+
+           + skip_unknown_chr() + '\n\n'
+
+           'outDir=./${ID}_strelkaAnalysis\n'
+           'rm -rf $outDir\n\n'
+
+           '#--output-dir=$outDir\n'
+
+           'echo outDir: $outDir >> $logFile\n'
+           'echo WORK: $(pwd) >> $logFile\n'
+           'echo config: $config >> $logFile\n\n'
+
+           '# Using default (./strelkaAnalysis)  output dir\n' +
+           exe_config['strelka'] + ' --normal=$inNormal --tumor=$inTumor --ref=' + ref_config['ref'] +
+           ' --config=$config --output-dir=$outDir 2>> $logFile\n\n'
+
+           'echo About to run Strelka... >> $logFile\n\n'
+
+           'cd $outDir\n'
+           'make -j ' + str(int(kwargs.get('packing_cores')) * 2) + ' 2>> $logFile\n\n'
+
+             '# copy the results to expected output location\n'
+             'cp results/passed.somatic.snvs.vcf $snvVcf 2>> $logFile\n'
+             'cp results/passed.somatic.indels.vcf $indelVcf 2>> $logFile\n')
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper,
+        executable=True
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def printGatkIndelRealnment(run, appName, parameters):
+    """ Params needed: tmp, samtools, java, gcFlag, javaMem, gatk, ref,
+     indels1kg, indelsMills
+
+     May need to break this up into two sections to account for params of both steps"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n'
+           'contig=$6\n\n'
+
+           'tmpDir=' + run.tmp + '/${ID}.${contig}/GatkRecal\n'
+                                 'mkdir -p -v $tmpDir\n\n'
+
+                                 'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outBam', 'intervals'])
+
+           + getGatkContigCheckString()
+
+           + getBamIndexingString(run.exe['samtools'], 'inBam') +
+
+           '# Identify suspicious intervals\n'
+           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
+               'gatk']
+           + ' -I $inBam $contigParam -R ' + run.ref['ref'] + ' -T RealignerTargetCreator '
+                                                              '-known' + run.ref['indels1kg'] + ' -known ' + run.ref[
+               'indelsMills'] + ' -o $intervals  >> $logFile 2>&1\n\n'
+
+                                '# Perform local realingment using the intervals identified above\n'
+           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
+               'gatk']
+           + ' -I $inBam $contigParam -R ' + run.ref['ref'] + ' -T IndelRealigner ' + parameters + ' -known '
+           + run.ref['indels1kg'] + ' -known ' + run.ref[
+               'indelsMills'] + ' -targetIntervals $intervals -o $outBam >> $logFile 2>&1\n\n'
+
+                                '# Erase the temporary directory\n'
+                                'rm -rf $tmpDir\n\n'
+
+           + getEofCheckStr('outBam'))
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printGatkBqsrGrp(run, appName, parameters):
+    """ NEED TO ADD CONTIG TO THE ACTUAL SWIFT CODE
+
+    ^ Meaning it needs to be passed the name of the contig? """
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outGrp=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n\n'
+
+           'tmpDir=$(pwd)/${ID}.${contig}/GatkRecal\n'
+           'mkdir -p -v $tmpDir\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outGrp'])
+
+           + getGatkContigCheckString()
+
+           + getBamIndexingString(run.exe['samtools'], 'inBam') +
+
+           '# Do base quality recalibration to produce grp file\n'
+           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
+               'gatk']
+           + ' -I $inBam -R ' + run.ref['ref'] + ' -T BaseRecalibrator ' + parameters +
+           ' -knownSites ' + run.ref['dbSnpVcf'] + ' -knownSites ' + run.ref['indelsMills']
+           + ' -knownSites ' + run.ref['indels1kg'] + ' -o $outGrp >> $logFile 2>&1\n\n'
+
+                                                      '# Erase the temporary directory\n'
+                                                      'rm -rf $tmpDir\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printGatkBqsr(run, appName, parameters):
+    """yep"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'grp=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n\n'
+
+           'tmpDir=$(pwd)/${ID}/GatkBqsrPrint\n'
+           'mkdir -p -v $tmpDir\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outBam'])
+
+           + getBamIndexingString(run.exe['samtools'], 'inBam') +
+
+           '# Generate recalibrated bam\n'
+           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
+               'gatk'] +
+           ' -I $inBam -R ' + run.ref['ref'] + ' -T PrintReads -BQSR $grp -o $outBam >> \$logFile 2>&1\n\n'
+
+                                               '# Erase the temporary directory\n'
+                                               'rm -rf $tmpDir\n\n'
+
+           + getEofCheckStr('outBam'))
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printGatkBqsrGrpReduce(run, appName, parameters):
+    """Don't allow this wrapper to be altered by users. Should be an
+    under-the-hood process"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'outGrp=$1\n'
+           'logFile=$2\n'
+           'ID=$3\n'
+           'dir=$4\n'
+           'shift 4\n'
+           '# Load grps into this variable\n'
+           'inGrp=$*\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString() +
+
+           'export CLASSPATH=' + run.exe['gatkQueue'] + ':' + run.grpReduceDir + '\n\n'
+
+                                                                                 '# Will check if bam had data in it\n'
+                                                                                 '# if it does not the file will not be passed to the reduce grps step\n'
+                                                                                 'inGrps=""\n'
+                                                                                 'for file in $inGrp;do\n'
+                                                                                 '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+                                                                                 '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+                                                                                 '\telse\n'
+                                                                                 '\t\tinGrps=$inGrps" "$file\n'
+                                                                                 '\tfi\n'
+                                                                                 'done\n\n'
+
+                                                                                 '# reduce grps\n'
+           + run.exe['java'] + ' ' + run.grpReduce + ' $outGrp $inGrps >> $logFile 2>&1')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printSamtoolsFlagstat(run, appName, parameters):
+    """ ff"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outStats=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString() +
+
+           '# get flagstats results\n'
+           + run.exe['samtools'] + ' flagstat $inBam 2>> $logFile > $outStats\n\n'
+
+                                   '# Could check for successful completion here')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printIndexBam(run, appName, parameters):
+    """ ff"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outIndex=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outIndex']) +
+
+           '# index the bam\n'
+           + run.exe['samtools'] + ' index $inBam 2>> $logFile\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printPicardMarkDuplicates(run, appName, parameters):
+    """dd"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'logFile=$3\n'
+           'metrics=$4\n'
+           'ID=$5\n'
+           'dir=$6\n\n'
+
+           'tmpDir=$(pwd)/${ID}/PicardMarkDupl\n'
+           'mkdir -p -v $tmpDir\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outBam', 'metrics']) +
+
+           '## Sorting should not be necessary here.. handle in aln wrappers\n\n'
+
+           '## Here need to be sure you are specifying validation stringency in json\n'
+           '## Also need to specify what should be done with duplicates\n'
+           + run.exe['java'] + ' ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
+               'markDuplicates'] + ' INPUT=$inBam '
+                                   'OUTPUT=$outBam METRICS_FILE=$metrics TMP_DIR=$tmpDir ' + parameters + ' >> $logFile 2>&1\n\n'
+
+                                                                                                          '# Erase the temporary directory\n'
+                                                                                                          'rm -rf $tmpDir\n\n'
+
+           + getEofCheckStr('outBam'))
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printBedtoolsGenomeCoverage(run, appName, parameters):
+    """heh heh """
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outCov=$2\n'
+           'outDoC=$3\n'
+           'logFile=$4\n'
+           'prefix=$5\n'
+           'dir=$6\n\n'
+
+           'export PATH=' + run.PATH + '\n'
+                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
+
+           + getHostnameString() +
+
+           '# Get coverage via bedtools and grep out genome info\n'
+           + run.exe['genomeCoverageBed'] + ' -ibam $inBam  -g ' + run.ref[
+               'ref'] + ' | grep genome > $outCov 2>> $logFile\n'
+
+           + run.exe['python'] + ' ' + run.getDoC + ' $outCov 2>> $logFile > $outDoC\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printRgMergeSort(run, appName, parameters):
+    """pass in contigs file, parse within wrapper
+
+    No longer checking for EOF marker
+
+    set -e is commented out for now"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           '#set -e\n\n'
+
+           'sampleContigs=$1\n'
+           'logFile=$2\n'
+           'ID=$3\n'
+           'dir=$4\n'
+           '# Be sure this shift is properly picking up all bams\n'
+           'shift 4\n'
+           '# Load all the rest in this variable\n'
+           'inBam=$*\n\n'
+
+           'export PATH=' + run.PATH + '\n'
+                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
+
+           + getHostnameString() +
+
+           'tmpDir=$(pwd)\n\n'
+
+           '# Will check if bam has data in it'
+           '# if it does not the file will be ignored at the Novosort step\n'
+           'inBams=""\n'
+           'for file in $inBam;do\n'
+           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+           '\telse\n'
+           '\t\tinBams=$inBams" "$file\n'
+           '\tfi\n'
+           'done\n\n'
+
+           'absDirName=$(dirname $logFile)\n'
+
+           '# Use Novosort\n'
+           + run.exe['novosort'] + ' --threads ' + str(run.maxCores) + ' --ram ' + str(
+        run.maxMem) + 'M --tmpcompression 6 '
+                      '--tmpdir $tmpDir $inBams 2>> $logFile | ' + run.exe[
+               'bamutil'] + ' splitChromosome --in -.bam --out '
+                            '${absDirName}/${ID}.contig. --noef 2>> $logFile\n\n'
+
+                            '# declare array\n'
+                            'declare -a outBams\n'
+                            '# Load file into array.\n'
+                            'let i=0\n'
+                            'while IFS=$"\n" read -r line_data; do\n'
+                            '\techo Contig file: ${line_data} >> $logFile\n'
+                            '\toutBams[i]="${line_data}"\n'
+                            '\t((++i))\n'
+                            'done < $sampleContigs\n\n'
+
+                            '# Test if the contig files exist... if not echo no_mapped_reads\n'
+                            'for outBam in "${outBams[@]}";do\n'
+                            '\tif [[ ! -s $outBam ]]; then\n'
+                            '\t\techo $outBam: no_mapped_reads >> $logFile 2>&1\n'
+                            '\t\techo no_mapped_reads > $outBam 2>> $logFile\n'
+                            '\telse\n'
+                            '\t\ttrue\n'
+                            '\tfi\n'
+                            'done\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+# TEMPORARY SOLUTION... WILL MAKE FLEXIBLE TO SAMTOOLS AS WELL
+def printContigMergeSort(run, appName, parameters):
+    """This can potentially be used on contigs as well as read groups... check
+    when actually using Swift"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'outBam=$1\n'
+           'logFile=$2\n'
+           'ID=$3\n'
+           'dir=$4\n'
+           '# Be sure this shift is properly picking up all bams\n'
+           'shift 4\n'
+           '# Load all the rest in this variable\n'
+           'inBam=$*\n\n'
+
+           'export PATH=' + run.PATH + '\n'
+                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
+
+           + getHostnameString() +
+
+           'tmpDir=$(pwd)/${ID}/NovoSortMergeSort\n'
+           'mkdir -p -v $tmpDir\n\n'
+
+           '# Will check if bam has data in it\n'
+           '# if it does not the file will be ignored at the Novosort step\n'
+           'inBams=""\n'
+           'for file in $inBam;do\n'
+           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+           '\telse\n'
+           '\t\tinBams=$inBams" "$file\n'
+           '\tfi\n'
+           'done\n\n'
+
+           '# Use Novosort\n'
+           'echo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
+           + run.exe['novosort'] + ' --threads ' + str(run.maxCores) + ' --ram ' + str(
+        run.maxMem) + 'M --tmpcompression 6 '
+                      '--tmpdir $tmpDir --output $outBam --index $inBams >> $logFile 2>&1\n\n'
+
+           + getEofCheckStr('outBam'))
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+"""
+def printConcatVcf(run, appName, parameters):
+	''' ff'''
+	
+	Str = ('#!/bin/bash\n\n'
+	
+			'set -e\n\n'
+
+			'outVcf=$1\n'
+			'logFile=$2\n'
+			'ID=$3\n'
+			'dir=$4\n'
+			'shift 4\n'
+			'# Load all the rest in this variable\n'
+			'contigVcfs=$*\n\n'
+			
+			'export PATH=' + run.PATH + '\n\n'
+			
+			+ getHostnameString() +
+			
+			'# Will check if file had data in it\n'
+			'# if it does not the file will not be passed to the reduce vcfs step\n'
+			'inVcfs=""\n'
+			'for file in $contigVcfs;do\n'
+				'\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+					'\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+				'\telse\n'
+					'\t\tinVcfs=$inVcfs" "$file\n'
+					'\t\theaderVcf=$file\n'
+				'\tfi\n'
+			'done\n\n'
+			
+			'#Test if at least one vcf contains variants\n'
+			'if [ "$inVcfs" == "" ]; then\n'
+				'\techo All vcfs contained no_mapped_reads...exiting >> $logFile 2>&1\n'
+				'\techo no_mapped_reads > $outVcf\n'
+				'\texit 0\n'
+			'else\n'
+				'\techo At least one bam contains mapped reads...continuing... >> $logFile 2>&1\n'
+			'fi\n\n'
+			
+			'tmpVcf=$(basename $outVcf).tmp\n\n'
+			
+			'# Cat vcfs together\n'
+			'(cat $headerVcf | head -5000 | grep ^#; '
+			'cat $inVcfs | grep -v ^#;) 2>> $logFile > $tmpVcf\n\n'
+			
+			'# Sort Vcf\n'
+			'(cat $tmpVcf | head -5000 | grep ^#;'
+			'cat $tmpVcf | grep -v ^# | sort -k1,1d -k2,2n;) > $outVcf\n')
+			
+	filename = appName + '.sh'
+	# call fxn to print the wrapper created above
+	printFile(run.wrapperDir, filename, Str, True)
+"""
+
+
+def printConcatVcf(run, appName, parameters):
+    """ Uses sortByRef from GATK's Geraldine"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           '#set -e\n\n'
+
+           'outVcf=$1\n'
+           'logFile=$2\n'
+           'ID=$3\n'
+           'dir=$4\n'
+           'shift 4\n'
+           '# Load all the rest in this variable\n'
+           'contigVcfs=$*\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString() +
+
+           '# Will check if file had data in it\n'
+           '# if it does not the file will not be passed to the reduce vcfs step\n'
+           'inVcfs=""\n'
+           'for file in $contigVcfs;do\n'
+           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+           '\telse\n'
+           '\t\tinVcfs=$inVcfs" "$file\n'
+           '\t\theaderVcf=$file\n'
+           '\tfi\n'
+           'done\n\n'
+
+           '#Test if at least one vcf contains variants\n'
+           'if [ "$inVcfs" == "" ]; then\n'
+           '\techo All vcfs contained no_mapped_reads...exiting >> $logFile 2>&1\n'
+           '\techo no_mapped_reads > $outVcf\n'
+           '\texit 0\n'
+           'else\n'
+           '\techo At least one bam contains mapped reads...continuing... >> $logFile 2>&1\n'
+           'fi\n\n'
+
+           'tmpVcf=$(basename $outVcf).tmp\n\n'
+
+           '# Cat vcfs together\n'
+           'cat $inVcfs | grep -v "^#\|^chrom" 2>> $logFile > $tmpVcf\n\n'
+
+           '# Sort Vcf... sed to create proper headers for VarScan vcfs\n'
+           'head -5000 $headerVcf | grep "^#\|^chrom" | sed ":^chrom: s:chrom:#chrom:" 2>> $logFile > $outVcf\n'
+           'perl ' + os.path.join(run.utilitiesDir, 'sortByRef.pl') + ' $tmpVcf ' + run.ref[
+               'ref'] + '.fai 2>> $logFile >> $outVcf\n\n'
+
+                        'echo sorting complete >> $logFile\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printSamtoolsParseContig(run, appName, parameters):
+    """ ttt"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outBam=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'contig=$7\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString() +
+
+           '# Check for the unmapped as the contig\n'
+           'if [ "$contig" == "unmapped" ]; then\n'
+           '\tcontigParam="-f 4"\n'
+           'else\n'
+           '\tcontigParam="$contig"\n'
+           'fi\n\n'
+
+           '# Extract each contig\n'
+           + run.exe['samtools'] + ' view -b $inBam $contigParam 2>> $logFile > $outBam\n\n'
+
+           + getEofCheckStr('outBam') +
+
+           '# Look into the bam via samtools view and determine if the file contains\n'
+           '# mapped reads. Could look into making this more efficient\n'
+           'dataString=$(' + run.exe['samtools'] + ' view $outBam | head)\n'
+                                                   'if [[ $? != 0 ]]; then\n'
+                                                   '\techo "Error from samtools view on read check... exiting 1" >> $logFile 2>&1\n'
+                                                   '\texit 1\n'
+                                                   'elif [[ -n $dataString ]]; then\n'
+                                                   '\techo "bam ($outBam) contains mapped reads... exiting 0" >> $logFile 2>&1\n'
+                                                   '\texit 0\n'
+                                                   'else\n'
+                                                   '\techo "No mapped reads found in $outBam" >> $logFile 2>&1\n'
+                                                   '\t# Will subsequently check for header below\n'
+                                                   'fi\n\n'
+
+                                                   '# Looks to see if the outBam has a header\n'
+                                                   'dataString=$(' + run.exe['samtools'] + ' view -H $outBam)\n'
+                                                   'if [[ $? != 0 ]]; then\n'
+                                                   '\techo "Error from samtools view on read check... exiting 1" >> $logFile 2>&1\n'
+                                                   '\texit 1\n'
+                                                   'elif [[ -n $dataString ]]; then\n'
+                                                   '\techo "bam ($outBam) contains a header but no mapped reads..." >> $logFile 2>&1\n'
+                                                   '\techo "$outBam will be populated with no_mapped_reads... exiting 0" >> $logFile 2>&1\n'
+                                                   '\techo "no_mapped_reads" > $outBam\n'
+                                                   '\texit 0\n'
+                                                   'else\n'
+                                                   '\t# Likely should not ever get here\n'
+                                                   '\techo "No header found in $outBam... exiting 1" >> $logFile 2>&1\n'
+                                                   '\texit 1\n'
+                                                   'fi\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printDellyGerm(run, appName, parameters):
+    """333"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outVcf=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'analysisType=$7\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outVcf']) +
+
+           '# Initialize delly output file... if no struct vars Delly does\n'
+           '# not appear to produce a vcf\n'
+           'echo no_mapped_reads > $outVcf\n\n'
+
+           '# Call with delly\n'
+           + run.exe['delly'] + ' -g ' + run.ref[
+               'ref'] + ' -o $outVcf ' + parameters + ' -t $analysisType $inBam >> $logFile 2>&1\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printSnpEff(run, appName, parameters):
+    """Like with a few other wrappers, need to add a random component to
+    the tmp dir generation... otherwise with two callers operating on
+    the same chr there may be removal conflicts at this step"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inVcf=$1\n'
+           'outVcf=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n\n'
+
+           'tmpDir=$(pwd)/${ID}/snpEff\n'
+           'mkdir -p -v $tmpDir\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString() +
+
+           '# Check to see if the vcf has data\n'
+           '# If not, write no_mapped_reads to outVcf\n'
+           + getNoMappedReadsStrCheck('inVcf', ['outVcf']) +
+
+           'export data_dir=$' + run.ref['snpEffDataDir'] + '\n\n'
+
+                                                            '# Execute snpEff\n'
+           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar '
+           + run.exe['snpEff'] + ' -v ' + run.ref['snpEffBuild'] + ' -c ' + run.ref['snpEffConfig'] +
+           ' ' + parameters + ' $inVcf 2>> $logFile > $outVcf\n\n'
+
+                              '# Erase the temporary directory\n'
+                              'rm -rf \$tmpDir\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printBwaAln(run, appName, parameters):
+    """Note that maxCores on the sampe or samse steps assumes that bwa tpx is
+    being used. May need to find a good way of handling this.
+
+    Need to also handle the fact that novosort is not open source... will
+    have to replace this with te multi-threaded version of samtools sort
+
+    Need to change this so tpx is not used
+
+    Removed novosort for scalability
+
+    """
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'readGroupStr=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString() +
+
+           '# Expected output here is ${ID}_1.fastq and ${ID}_2.fastq if PE\n'
+           '# If SE the expected output is ${ID}.fastq\n'
+           '# the # in -o will get replaced by _1 and _2\n'
+           + run.exe['bam2fastq'] + ' --force -o ${ID}#.fastq $inBam >> $logFile 2>&1\n\n'
+
+                                    '\treadGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
+
+                                    '### Checks for PE output... will align SE vs PE accordingly\n'
+                                    'alignPrefix=${ID}.bwa.tmp\n'
+                                    'if [ $(find . -name *${ID}_1.fastq) ]; then\n\n'
+
+                                    '\t# Aln first end\n'
+                                    '\t' + run.exe['bwa'] + ' aln ' + parameters + ' -t ' + str(run.maxCores) + ' ' +
+           run.ref['ref'] + ' ${ID}_1.fastq > ${ID}_1.sai 2>> $logFile\n\n'
+
+                            '\t# Aln second end\n'
+                            '\t' + run.exe['bwa'] + ' aln ' + parameters + ' -t ' + str(run.maxCores) + ' ' + run.ref[
+               'ref'] + ' ${ID}_1.fastq > ${ID}_2.sai 2>> $logFile\n\n'
+
+                        '\t# Coordinate pairs via sampe & insert the proper read group info\n'
+                        '\t' + run.exe['bwa'] + ' sampe -P -r "$readGroup" ' + run.ref[
+               'ref'] + ' ${ID}_1.sai ${ID}_2.sai '
+                        '${ID}_1.fastq ${ID}_2.fastq 2>> $logFile | ' + run.exe[
+               'samtools'] + ' view -b - 2>> $logFile | '
+           + run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(
+        run.maxMem / 2) + 'M --tmpcompression 6 '
+                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+
+                          'else\n'
+                          '\t# Aln\n'
+                          '\t' + run.exe['bwa'] + ' aln ' + parameters + ' -t ' + str(run.maxCores) + ' ' + run.ref[
+               'ref'] + ' ${ID}.fastq > ${ID}.sai 2>> $logFile\n\n'
+
+                        '\t# Inserts the proper read group info & samse step\n'
+                        '\t' + run.exe['bwa'] + ' samse -r $readGroup ' + run.ref['ref'] +
+           ' ${ID}.sai ${ID}.fastq 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
+           + run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(
+        run.maxMem / 2) + 'M --tmpcompression 6 '
+                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+
+                          'fi\n\n'
+
+           + getEofCheckStr('outBam'))
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printPlatypusGerm(run, appName, parameters):
+    """rrr
+
+    LD_LIBRARY_PATH necessary for Beagle
+    """
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outVcf=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'coords=$7\n\n'
+
+           'export PATH=' + run.PATH + '\n'
+                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# Genotype\n'
+           + run.exe['python'] + ' ' + run.exe[
+               'platypus'] + ' callVariants --nCPU ' + run.packingCores + ' --output $outVcf '
+                                                                          '--refFile ' + run.ref[
+               'ref'] + ' --regions $coords ' + parameters + ' --bamFiles $inBam >> $logFile 2>&1\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printScalpelGerm(run, appName, parameters):
+    """rrr
+
+    """
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outVcf=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'coords=$7\n\n'
+
+           'export PATH=' + run.PATH + '\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# Genotype\n'
+           + + run.exe['scalpel'] + ' --single --bam $inBam --bed $coords --numprocs ' + str(
+        int(run.packingCores) * 2) +
+           ' --ref ' + run.ref['ref'] + ' ' + parameters + ' > $outVcf 2>> $logFile\n\n'
+
+                                                           '# Move output to proper location\n'
+                                                           'mv ./outdir/variants.*.indel.vcf $outVcf\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printHaplotypeCaller(run, appName, parameters):
+    """eee
+
+    This is one wrapper that needs a random component to the tmp dir.
+    Could just have coords be involved
+
+    Parallel garbage collection not used here"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'inBamIndex=$2\n'
+           'outVcf=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'coords=$7\n\n'
+
+           '# Cannot remove tmp dir at end of this script! Other processes\n'
+           '# will be using that dir as tmp\n'
+           'tmpDir=$(pwd)/${ID}/GatkHaplotypeCaller\n'
+           'mkdir -p -v $tmpDir\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inBam', ['outVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# Genotype\n'
+           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.ramPoolMem + ' -jar ' + run.exe['gatk'] +
+           ' -T HaplotypeCaller -R ' + run.ref['ref'] + ' -I $inBam -L $coords -nct ' + str(int(run.packingCores) * 2) +
+           ' --dbsnp ' + run.ref['dbSnpVcf'] + ' -o $outVcf ' + parameters + ' >> $logFile 2>&1\n\n'
+
+                                                                             '# TODO - integrate this back in\n'
+                                                                             '#rm -r $tmpDir\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+"""
+### NEED TO MAKE THIS WORK - Not complete!
+def printBwaMem(run, appName, parameters):
+	''' Fill this in '''
+	
+	# String literal to fix backslash issues
+	
+	Str = ('#!/bin/bash\n\n'
+	
+			'set -e\n\n'
+	
+			'inBam=$1\n'
+			'outBam=$2\n'
+			'readGroupStr=$3\n'
+			'logFile=$4\n'
+			'ID=$5\n'
+			'dir=$6\n\n'
+			
+			'export PATH=' + run.PATH + '\n\n'
+			
+			'tmpDir=$(pwd)/${ID}/NovoSortBwa\n'
+			'mkdir -p -v $tmpDir\n\n'
+			
+			+ getHostnameString() +
+			
+			'# Expected output here is ${ID}_1.fastq and ${ID}_2.fastq if PE\n'
+			'# If SE the expected output is ${ID}.fastq\n'
+			'# the # in -o will get replaced by _1 and _2\n'
+			+ run.exe['bam2fastq']  + ' --force -o ${ID}#.fastq $inBam >> $logFile 2>&1\n\n'
+			
+			r'readGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED' + '\n\n'
+			
+			'### Checks for PE output... will align SE vs PE accordingly\n'
+			'alignPrefix=${ID}.bwa.tmp\n'
+			'if [ $(find . -name *${ID}_1.fastq) ]; then\n\n'
+				
+				'\t# Aln PE -M by default for Picard compatibility\n'
+				'\t' + run.exe['bwa'] + ' mem ' + parameters + ' -M -t ' + str(run.maxCores) + ' -R "$readGroup" ' + run.ref['ref'] + 
+					' ${ID}_1.fastq ${ID}_2.fastq 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
+					+ run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(run.maxMem / 2) + 'M --tmpcompression 6 '
+					'--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+			
+			'else\n'
+				'\t# Aln SE -M by default for Picard compatibility\n'
+				'\t' + run.exe['bwa'] + ' mem ' + parameters + ' -M -t ' + str(run.maxCores) + ' -R "$readGroup" ' + run.ref['ref'] + 
+					' ${ID}.fastq 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
+					+ run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(run.maxMem / 2) + 'M --tmpcompression 6 '
+					'--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+			
+			'fi\n\n'
+			
+			+ getEofCheckStr('outBam'))
+	
+	filename = appName + '.sh'
+	# call fxn to print the wrapper created above
+	printFile(run.wrapperDir, filename, Str, True)
+"""
+
+
+def printBwaMem(run, appName, parameters):
+    """ Need to think about how to handle maxcores with bwa
+    Perhaps could use all of them... need to try that now but test other
+    options later... Using bamUtil bam2fastq now...
+
+    Currently not removing the tmp dir used by novosort... remember this
+    still needs to be flexible to novosort vs samtools"""
+
+    # String literal to fix backslash issues
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'outBam=$2\n'
+           'RGname=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n\n'
+
+           'export PATH=' + run.PATH + '\n'
+                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
+
+                                                                                         'tmpDir=$(pwd)/${ID}/NovoSortBwa\n'
+                                                                                         'mkdir -p -v $tmpDir\n\n'
+
+           + getHostnameString() +
+
+           '# Get read group string... could make this cleaner\n'
+           'readGroup=$(' + run.exe[
+               'samtools'] + ' view -H $inBam 2>> $logFile | grep "@RG"| grep $RGname | sed "s:\t:\\t:g" | sed "s:\t:\\t:g")\n\n'
+
+                             'echo Read group: $RGname >> $logFile\n\n'
+
+                             '# Will default to PE... is wc -l > 0 then a PE run will be initated\n'
+                             'numPairedReads=$(' + run.exe[
+               'samtools'] + ' view -b -r $RGname -f 0x1 $inBam | head -25000 | wc -l)\n\n'
+
+                             'if [ "$numPairedReads" -gt "0" ]; then\n'
+           + ('\t' * 1) + 'echo File $inBam appears to contain PAIRED END fastq data... >> $logFile\n'
+           + ('\t' * 1) + 'echo Extracting and aligning PAIRED END data... >> $logFile\n\n'
+
+           + ('\t' * 1) + 'fastq1=${ID}_1.fastq\n'
+           + ('\t' * 1) + 'fastq2=${ID}_2.fastq\n\n'
+
+           + ('\t' * 1) + '# Paired end data... rm existing and make named pipes\n'
+           + ('\t' * 1) + 'rm -f $fastq1\n'
+           + ('\t' * 1) + 'rm -f $fastq2\n\n'
+           + ('\t' * 1) + 'mkfifo $fastq1\n'
+           + ('\t' * 1) + 'mkfifo $fastq2\n\n'
+
+           + ('\t' * 1) + '# Unpaired fastq will be discarded into /dev/null\n'
+           + ('\t' * 1) + run.exe['samtools'] + ' view -b -r $RGname $inBam 2>> $logFile | '
+           + run.exe['bamutil'] + ' bam2FastQ --in -.bam --noeof --firstOut $fastq1 --secondOut '
+                                  '$fastq2 --unpairedOut /dev/null 2>> $logFile &\n\n'
+
+           + ('\t' * 1) + '# Aln PE -M by default for Picard compatibility\n'
+           + ('\t' * 1) + run.exe['bwa'] + ' mem ' + parameters + ' -M -t ' + str(run.maxCores) + ' -R "$readGroup" ' +
+           run.ref['ref'] +
+           ' $fastq1 $fastq2 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
+           + run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(
+        run.maxMem / 2) + 'M --tmpcompression 6 '
+                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+
+           + ('\t' * 1) + '# remove fifo variables/objects\n'
+           + ('\t' * 1) + 'rm $fastq1\n'
+           + ('\t' * 1) + 'rm $fastq2\n\n'
+
+                          'else\n'
+           + ('\t' * 1) + '#Will be single end\n'
+           + ('\t' * 1) + 'echo File $inBam appears to contain SINGLE END fastq data... >> $logFile\n'
+           + ('\t' * 1) + 'echo Extracting and aligning SINGLE END data... >> $logFile\n\n'
+
+           + ('\t' * 1) + 'fastq=${ID}.fastq\n\n'
+
+           + ('\t' * 1) + '# Single end data... make named pipes\n'
+           + ('\t' * 1) + 'rm -f $fastq\n\n'
+           + ('\t' * 1) + 'mkfifo $fastq\n\n'
+
+           + ('\t' * 1) + '# end 1 and end 2 fastq will be discarded into /dev/null\n'
+           + ('\t' * 1) + run.exe['samtools'] + ' view -b -r $RGname $inBam 2>> $logFile | '
+           + run.exe['bamutil'] + ' bam2FastQ --in -.bam --noeof --firstOut /dev/null --secondOut '
+                                  '/dev/null --unpairedOut $fastq 2>> $logFile &\n\n'
+
+           + ('\t' * 1) + run.exe['bwa'] + ' mem ' + parameters + ' -M -t ' + str(run.maxCores) + ' -R "$readGroup" ' +
+           run.ref['ref'] +
+           ' $fastq 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
+           + run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(
+        run.maxMem / 2) + 'M --tmpcompression 6 '
+                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+
+           + ('\t' * 1) + '# remove fifo variables/objects\n'
+           + ('\t' * 1) + 'rm $fastq\n\n'
+
+                          'fi\n\n'
+
+           + getEofCheckStr('outBam'))
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printDellyPaired(run, appName, parameters):
+    """ Could multi-thread this with the statically linked parallel
+    version of Delly. It parallelizes by samples so num threads = 2
+
+    Parallel var set... just need the parallel statically linked binary"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'analysisType=$9\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+                                       'export OMP_NUM_THREADS=2\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
+
+           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# Initialize delly output file... if no struct vars Delly does\n'
+           '# not appear to produce a vcf\n'
+           'echo no_mapped_reads > $outVcf\n\n'
+
+           '# Call with delly\n'
+           + run.exe['delly'] + ' -g ' + run.ref['ref'] + ' -o $outVcf ' + parameters +
+           ' -t $analysisType $inTumor $inNormal >> $logFile 2>&1\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printPlatypusPaired(run, appName, parameters):
+    """ Fill this in
+
+    LD_LIBRARY_PATH necessary for Beagle"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'coords=$9\n\n'
+
+           'export PATH=' + run.PATH + '\n'
+                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
+
+           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# Genotype\n'
+           + run.exe['python'] + ' ' + run.exe[
+               'platypus'] + ' callVariants --nCPU ' + run.packingCores + ' --output $outVcf '
+                                                                          '--refFile ' + run.ref[
+               'ref'] + ' --regions $coords ' + parameters + ' --bamFiles $inTumor $inNormal >> $logFile 2>&1\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printMutect(run, appName, parameters):
+    """ Need to be sure this is the proper way to specify coords in mutect.
+    Determine if multi-threading can work for mutect and if the memory set here
+    is appropriate"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'coords=$9\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
+
+           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# Genotype\n'
+           + run.exe['java'] + ' ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe['mutect'] +
+           ' --analysis_type MuTect --reference_sequence ' + run.ref['ref'] +
+           ' --cosmic ' + run.ref['cosmic'] + ' --dbsnp ' + run.ref['dbSnpVcf'] +
+           ' -L $coords --input_file:normal $inNormal --input_file:tumor $inTumor'
+           ' --vcf $outVcf --coverage_file ${ID}.coverage.wig.txt >> $logFile 2>&1\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printScalpelPaired(run, appName, parameters):
+    """Currently written to only return variants that are determined to
+    be somatic by scalpel (i.e. will not give germline variants"""
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'coords=$9\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
+
+           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# Genotype\n'
+           + run.exe['scalpel'] + ' --somatic --normal $inNormal --tumor '
+                                  '$inTumor --bed $coords --ref ' + run.ref['ref'] + ' --numprocs ' + str(
+        int(run.packingCores) * 2) +
+           ' ' + parameters + ' > $outVcf 2>> $logFile\n\n'
+
+                              '# Move output to proper location\n'
+                              'mv ./outdir/main/somatic.*.indel.vcf $outVcf\n\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printMpileupPaired(run, appName, parameters):
+    ''' Uses the multi-allelic caller by default '''
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'outVcf=$5\n'
+           'logFile=$6\n'
+           'ID=$7\n'
+           'dir=$8\n'
+           'coords=$9\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
+
+           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# Genotype\n'
+           + run.exe['samtools'] + ' mpileup -r $coords -u ' + parameters + ' -f '
+           + run.ref['ref'] + ' $inTumorIn $inNormal | ' + run.exe['bcftools'] +
+           ' call -m -O v 2>> $logFile > $outVcf')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printVarscan(run, appName, parameters):
+    ''' Will automatically call snps and indels. They will be cat into the
+    same file. in addtion, mpileup with default params is used to generate
+    the pileup files '''
+
+    if run.args['worker_tmp']:
+        tmp = '/tmp/'
+    else:
+        tmp = ''
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'snvVcf=$5\n'
+           'indelVcf=$6\n'
+           'logFile=$7\n'
+           'ID=$8\n'
+           'dir=$9\n'
+           'coords=${10}\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inTumor', ['snvVcf', 'indelVcf'])
+
+           + getNoMappedReadsStrCheck('inNormal', ['snvVcf', 'indelVcf'])
+
+           + getSkipUnknownChrString() +
+
+           '# create names for each pileup\n'
+           'tPileup=' + tmp + '${ID}.tumor.pileup\n'
+                              'nPileup=' + tmp + '${ID}.normal.pileup\n\n'
+
+                                                 '# Commands will be executed simultaneously\n'
+           + run.exe['samtools'] + ' mpileup -r $coords -f ' + run.ref['ref'] + ' $inTumor 2>> $logFile > $tPileup &\n'
+
+           + run.exe['samtools'] + ' mpileup -r $coords -f ' + run.ref['ref'] + ' $inNormal 2>> $logFile > $nPileup\n\n'
+
+                                                                                '# Check if either pileup is empty\n'
+                                                                                'if [ -s $tPileup ]\n'
+                                                                                'then\n'
+                                                                                '\techo $tPileup is NOT of zero size >> $logFile\n'
+                                                                                'else\n'
+                                                                                '\techo $tPileup is of zero size...exiting >> $logFile\n'
+                                                                                '\techo no_mapped_reads >> $snvVcf\n'
+                                                                                '\techo no_mapped_reads >> $indelVcf\n'
+                                                                                '\texit 0\n'
+                                                                                'fi\n\n'
+
+                                                                                'if [ -s $nPileup ]\n'
+                                                                                'then\n'
+                                                                                '\techo $nPileup is NOT of zero size >> $logFile\n'
+                                                                                'else\n'
+                                                                                '\techo $nPileup is of zero size...exiting >> $logFile\n'
+                                                                                '\techo no_mapped_reads >> $snvVcf\n'
+                                                                                '\techo no_mapped_reads >> $indelVcf\n'
+                                                                                '\texit 0\n'
+                                                                                'fi\n\n'
+
+                                                                                '# Genotype - outfile will be local\n'
+           + run.exe['java'] + ' -jar ' + run.exe['varscan'] + ' somatic ' + parameters +
+           ' $nPileup $tPileup $ID 2>> $logFile\n\n'
+
+           '# Move to the proper vcf files\n'
+           'cp ${ID}.snp $snvVcf 2>> $logFile\n'
+           'cp ${ID}.indel $indelVcf 2>> $logFile\n'
+
+           '# rm pileup files\n'
+           'rm -f $tPileup\n'
+           'rm -f $nPileup\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printSamtoolsExtractRg(run, appName, parameters):
+    """ Fill this in """
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           '## Will get RG ID from outfile\n'
+           'outBam=$2\n'
+           'readGroupStr=$3\n'
+           'logFile=$4\n'
+           'ID=$5\n'
+           'dir=$6\n'
+           'RGname=$7\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString() +
+
+           'RGID=$(basename $outBam | rev | cut -f 2 -d "." | rev)\n\n'
+
+           'echo RGname: $RGname >> $logFile\n\n'
+
+           '# get RG header info...\n'
+           'echo $(' + run.exe['samtools'] + ' view -H $inBam 2>> $logFile | grep ^@RG | grep $RGname | '
+                                             'sed "s:\\t:\\t:g" | sed "s:\\t:\\t:g" | sed "s: :_:g") > $readGroupStr 2>> $logFile\n'
+
+                                             '# extract read group then add proper header\n'
+           + run.exe['samtools'] + ' view -b -r $RGname $inBam > $outBam 2>> $logFile\n\n'
+
+                                   '#Check EOF\n'
+           + getEofCheckStr('outBam'))
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printBamutilPerBaseCoverage(run, appName, parameters):
+    """ Make this more flexible later... for now just have the cov stats
+    being written to temp, then gzip back """
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inBam=$1\n'
+           'perBaseCov=$2\n'
+           'logFile=$3\n'
+           'ID=$4\n'
+           'dir=$5\n'
+
+
+           'export PATH=' + run.PATH + '\n\n'
+                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
+
+           + getHostnameString() +
+
+           'tmpPerBaseCov=${ID}.perBaseCov.tmp\n\n'
+
+           '# remove and then create named pipe\n'
+           'rm -f $tmpPerBaseCov\n'
+           'mkfifo $tmpPerBaseCov\n\n'
+
+           '# Generate per base coverage and stream into cut\n'
+           + run.exe['bamutil'] + ' stats --cBaseQC $tmpPerBaseCov --regionsList ' + run.ref[
+               'regions'] + ' --in $inBam 2>> $logFile &\n\n'
+
+                            'cut -f 1-3,11,16-17 $tmpPerBaseCov 2>> $logFile | gzip > $perBaseCov 2>> $logFile\n\n'
+
+                            'rm $tmpPerBaseCov\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+def printStrelka(run, appName, parameters):
+    """ need to print and pass strelka config file...
+
+    Might need to run on a per chrom basis (not region)"""
+
+    strelkaConfigPath = run.outDir + '/strelkaConfig.ini'
+    printStrelkaConfig(strelkaConfigPath, parameters)
+
+    Str = ('#!/bin/bash\n\n'
+
+           'set -e\n\n'
+
+           'inTumor=$1\n'
+           'inTumorIndex=$2\n'
+           'inNormal=$3\n'
+           'inNormalIndex=$4\n'
+           'snvVcf=$5\n'
+           'indelVcf=$6\n'
+           'config=$7\n'
+           'logFile=$8\n'
+           'ID=$9\n'
+           'dir=${10}\n\n'
+
+           'export PATH=' + run.PATH + '\n\n'
+
+           + getHostnameString()
+
+           + getNoMappedReadsStrCheck('inTumor', ['snvVcf', 'indelVcf'])
+
+           + getNoMappedReadsStrCheck('inNormal', ['snvVcf', 'indelVcf'])
+
+           + getSkipUnknownChrString() +
+
+           'outDir=./${ID}_strelkaAnalysis\n'
+           'rm -rf $outDir\n\n'
+
+           '#--output-dir=$outDir\n'
+
+           'echo outDir: $outDir >> $logFile\n'
+           'echo WORK: $(pwd) >> $logFile\n'
+           'echo config: $config >> $logFile\n\n'
+
+           '# Using default (./strelkaAnalysis)  output dir\n' +
+           run.exe['strelka'] + ' --normal=$inNormal --tumor=$inTumor --ref=' + run.ref['ref'] +
+           ' --config=$config --output-dir=$outDir 2>> $logFile\n\n'
+
+           'echo About to run Strelka... >> $logFile\n\n'
+
+           'cd $outDir\n'
+           'make -j ' + str(int(run.packingCores) * 2) + ' 2>> $logFile\n\n'
+
+                                                         '# copy the results to expected output location\n'
+                                                         'cp results/passed.somatic.snvs.vcf $snvVcf 2>> $logFile\n'
+                                                         'cp results/passed.somatic.indels.vcf $indelVcf 2>> $logFile\n')
+
+    filename = appName + '.sh'
+    # call fxn to print the wrapper created above
+    printFile(run.wrapperDir, filename, Str, True)
+
+
+################################
+# Print helper functions
+################################
+def write_wrapper(filepath, contents, executable=False):
+    # Write wrapper contents out to a file
+    with open(filepath, 'w') as wrapper_file:
+        wrapper_file.write(contents + '\n')
+
+    # If this wrapper needs to be executable, set the execution bits
+    if executable:
+        os.chmod(filepath, os.stat(filepath).st_mode | EXECUTABLE_BITS)
+
+
+def write_strelka_config(config_path, parameters):
+    with open(config_path, 'w') as strelka_config:
+        # Write out header
+        strelka_config.write('[user]\n')
+
+        # Write out key value pairs
+        extra_args = list()
+        for key, value in parameters.items():
+            if value:
+                strelka_config.write('{key} = {value}\n'.format(key=key, value=value))
+            else:
+                extra_args.append(key)
+
+        # Write out extra arguments (keys without values)
+        strelka_config.write('extraStrelkaArguments = {extra_args}'.format(
+            extra_args=' '.join(extra_args)
+        ))
+
+
+def printFile(directory, filename, contents, needsExe):
+    """ Takes a directory, filename, and string of contents (wrapper or config).
+    Will print wrapper to directory/filename and set it to executable if
+    required"""
+
+    if directory[-1] != '/':
+        directory = directory + '/'
+
+    filepath = directory + filename
+    FH = open(filepath, "w")
+    print >> FH, contents
+
+    if needsExe:
+        # Change the generated file to be executable to user, group, and world
+        fileStat = os.stat(filepath)
+        os.chmod(filepath, fileStat.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def printStrelkaConfig(strelkaConfigPath, parameters):
+    """fff"""
+
+    FH = open(strelkaConfigPath, 'w')
+
+    otherParamStr = 'extraStrelkaArguments = '
+    print >> FH, '[user]'
+
+    for parameter in parameters:
+        parameterVal = parameters[parameter]
+
+        if parameterVal == '':
+            otherParamStr = otherParamStr + parameter + ' '
+
+        else:
+            print >> FH, parameter + ' = ' + parameterVal + '\n'
+
+    print >> FH, otherParamStr
+
+    FH.close()
+    return

@@ -1,5 +1,5 @@
 import os
-import stat
+import six
 
 """ The section contains functions that will print out the various wrappers
 needed for SwiftSeq computations. Each will take various params such as
@@ -32,7 +32,7 @@ HaplotypeCaller.sh
 """
 
 
-EXECUTABLE_BITS = 73  # 0b001001001
+EXECUTABLE_BITS = 73  # 0b 001 001 001
 
 
 def eof_check(check_filename_variable):
@@ -708,69 +708,78 @@ def compose_RgMergeSort(app_name, **kwargs):
 
     exe_config = kwargs.get('exe_config')
 
-    wrapper = ('#!/bin/bash\n\n'
+    wrapper = (
+        '#!/bin/bash\n\n'
+        
+        '#set -e\n\n'
 
-           '#set -e\n\n'
+        'sampleContigs=$1\n'
+        'logFile=$2\n'
+        'ID=$3\n'
+        'dir=$4\n'
+        '# Be sure this shift is properly picking up all bams\n'
+        'shift 4\n'
+        '# Load all the rest in this variable\n'
+        'inBam=$*\n\n'
+        
+        'export PATH={env_PATH}\n'
+        'export LD_LIBRARY_PATH={env_LD_LIBRARY_PATH}\n\n'
+        
+        '{hostname_info}\n\n'
+        
+        'tmpDir=$(pwd)\n\n'
+        
+        '# Will check if bam has data in it'
+        '# if it does not the file will be ignored at the sorting step\n'
+        'inBams=""\n'
+        'for file in $inBam;do\n'
+        '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+        '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+        '\telse\n'
+        '\t\tinBams=$inBams" "$file\n'
+        '\tfi\n'
+        'done\n\n'
+        
+        'absDirName=$(dirname $logFile)\n'
+        
+        '# Use Sambamba for sorting\n'
+        '{exe_sambamba} sort --nthreads={max_cores} --memory-limit={max_mem}M --tmpdir=$tmpDir $inBams 2>> '
+            '$logFile | {exe_bamutil} splitChromosome --in -.bam --out ${{absDirName}}/${{ID}}.contig. --noef 2>> '
+            '$logFile\n\n'
+        # '{exe_novosort} --threads {max_cores} --ram {max_mem}M --tmpcompression 6 --tmpdir $tmpDir $inBams 2>> '
+        #     '$logFile | {exe_bamutil} splitChromosome --in -.bam --out ${{absDirName}}/${{ID}}.contig. --noef 2>> '
+        #     '$logFile\n\n'
+        
+        '# declare array\n'
+        'declare -a outBams\n'
+        '# Load file into array.\n'
+        'let i=0\n'
+        'while IFS=$"\n" read -r line_data; do\n'
+        '\techo Contig file: ${{line_data}} >> $logFile\n'
+        '\toutBams[i]="${{line_data}}"\n'
+        '\t((++i))\n'
+        'done < $sampleContigs\n\n'
 
-           'sampleContigs=$1\n'
-           'logFile=$2\n'
-           'ID=$3\n'
-           'dir=$4\n'
-           '# Be sure this shift is properly picking up all bams\n'
-           'shift 4\n'
-           '# Load all the rest in this variable\n'
-           'inBam=$*\n\n'
-
-           'export PATH=' + kwargs.get('env_PATH') + '\n'
-           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
-
-           + hostname_info() + '\n\n'
-
-           'tmpDir=$(pwd)\n\n'
-
-           '# Will check if bam has data in it'
-           '# if it does not the file will be ignored at the Novosort step\n'
-           'inBams=""\n'
-           'for file in $inBam;do\n'
-           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
-           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
-           '\telse\n'
-           '\t\tinBams=$inBams" "$file\n'
-           '\tfi\n'
-           'done\n\n'
-
-           'absDirName=$(dirname $logFile)\n'
-
-           '# Use Novosort\n'
-           + exe_config['novosort'] + ' --threads ' + str(kwargs.get('max_cores')) + ' --ram ' + str(
-        kwargs.get('max_mem')) + 'M --tmpcompression 6 '
-                      '--tmpdir $tmpDir $inBams 2>> $logFile | ' + exe_config[
-               'bamutil'] + ' splitChromosome --in -.bam --out '
-                            '${absDirName}/${ID}.contig. --noef 2>> $logFile\n\n'
-
-                            '# declare array\n'
-                            'declare -a outBams\n'
-                            '# Load file into array.\n'
-                            'let i=0\n'
-                            'while IFS=$"\n" read -r line_data; do\n'
-                            '\techo Contig file: ${line_data} >> $logFile\n'
-                            '\toutBams[i]="${line_data}"\n'
-                            '\t((++i))\n'
-                            'done < $sampleContigs\n\n'
-
-                            '# Test if the contig files exist... if not echo no_mapped_reads\n'
-                            'for outBam in "${outBams[@]}";do\n'
-                            '\tif [[ ! -s $outBam ]]; then\n'
-                            '\t\techo $outBam: no_mapped_reads >> $logFile 2>&1\n'
-                            '\t\techo no_mapped_reads > $outBam 2>> $logFile\n'
-                            '\telse\n'
-                            '\t\ttrue\n'
-                            '\tfi\n'
-                            'done\n\n')
+        '# Test if the contig files exist... if not echo no_mapped_reads\n'
+        'for outBam in "${{outBams[@]}}";do\n'
+        '\tif [[ ! -s $outBam ]]; then\n'
+        '\t\techo $outBam: no_mapped_reads >> $logFile 2>&1\n'
+        '\t\techo no_mapped_reads > $outBam 2>> $logFile\n'
+        '\telse\n'
+        '\t\ttrue\n'
+        '\tfi\n'
+        'done\n\n'
+    )
 
     write_wrapper(
         filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
-        contents=wrapper,
+        contents=wrapper.format(
+            hostname_info=hostname_info(),
+            exe_sambamba=exe_config['sambamba'],
+            # exe_novosort=exe_config['novosort'],
+            exe_bamutil=exe_config['bamutil'],
+            **kwargs
+        ),
         executable=True
     )
 
@@ -782,49 +791,61 @@ def compose_ContigMergeSort(app_name, **kwargs):
 
     exe_config = kwargs.get('exe_config')
 
-    wrapper = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'outBam=$1\n'
-           'logFile=$2\n'
-           'ID=$3\n'
-           'dir=$4\n'
-           '# Be sure this shift is properly picking up all bams\n'
-           'shift 4\n'
-           '# Load all the rest in this variable\n'
-           'inBam=$*\n\n'
-
-           'export PATH=' + kwargs.get('env_PATH') + '\n'
-           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
-
-           + hostname_info() + '\n\n'
-
-           'tmpDir=$(pwd)/${ID}/NovoSortMergeSort\n'
-           'mkdir -p -v $tmpDir\n\n'
-
-           '# Will check if bam has data in it\n'
-           '# if it does not the file will be ignored at the Novosort step\n'
-           'inBams=""\n'
-           'for file in $inBam;do\n'
-           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
-           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
-           '\telse\n'
-           '\t\tinBams=$inBams" "$file\n'
-           '\tfi\n'
-           'done\n\n'
-
-           '# Use Novosort\n'
-           'echo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
-           + exe_config['novosort'] + ' --threads ' + str(kwargs.get('max_cores')) + ' --ram ' + str(
-        kwargs.get('max_mem')) + 'M --tmpcompression 6 '
-                      '--tmpdir $tmpDir --output $outBam --index $inBams >> $logFile 2>&1\n\n'
-
-           + eof_check('outBam'))
+    wrapper = (
+        '#!/bin/bash\n\n'
+        
+        'set -e\n\n'
+        
+        'outBam=$1\n'
+        'logFile=$2\n'
+        'ID=$3\n'
+        'dir=$4\n'
+        '# Be sure this shift is properly picking up all bams\n'
+        'shift 4\n'
+        '# Load all the rest in this variable\n'
+        'inBam=$*\n\n'
+        
+        'export PATH={env_PATH}\n'
+        'export LD_LIBRARY_PATH={env_LD_LIBRARY_PATH}\n\n'
+        
+        '{hostname_info}\n\n'
+        
+        # 'tmpDir=$(pwd)/${{ID}}/NovoSortMergeSort\n'
+        'tmpDir=$(pwd)/${{ID}}/SambambaMergeSort\n'
+        'mkdir -p -v $tmpDir\n\n'
+        
+        '# Will check if bam has data in it\n'
+        # '# if it does not the file will be ignored at the Novosort step\n'
+        '# if it does not the file will be ignored at the Sambamba step\n'
+        'inBams=""\n'
+        'for file in $inBam;do\n'
+        '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+        '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+        '\telse\n'
+        '\t\tinBams=$inBams" "$file\n'
+        '\tfi\n'
+        'done\n\n'
+        
+        '# Use Novosort\n'
+        'echo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
+        # '{exe_novosort} --threads {max_cores} --ram {max_mem}M --tmpcompression 6 --tmpdir $tmpDir --output $outBam '
+        #     '--index $inBams >> $logFile 2>&1\n\n'
+        '{exe_sambamba} sort --nthreads={max_cores} --memory-limit={max_mem}M --tmpdir=$tmpDir --out=$outBam '
+            '>> $logFile 2>&1\n'
+        '{exe_sambamba} index --nthreads={max_cores} $outBam\n\n'
+        
+        '{eof_check}\n'
+    )
 
     write_wrapper(
         filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
-        contents=wrapper,
+        contents=wrapper.format(
+            hostname_info=hostname_info(),
+            eof_check=eof_check('outBam'),
+            # exe_novosort=exe_config['novosort'],
+            exe_sambamba=exe_config['sambamba'],
+            **kwargs
+        ),
         executable=True
     )
 
@@ -1061,68 +1082,81 @@ def compose_BwaAln(app_name, **kwargs):
     exe_config = kwargs.get('exe_config')
     ref_config = kwargs.get('ref_config')
 
-    wrapper = ('#!/bin/bash\n\n'
+    wrapper = (
+        '#!/bin/bash\n\n'
+        
+        'set -e\n\n'
+        
+        'inBam=$1\n'
+        'outBam=$2\n'
+        'readGroupStr=$3\n'
+        'logFile=$4\n'
+        'ID=$5\n'
+        'dir=$6\n\n'
+        
+        'export PATH={env_PATH}\n\n'
+        
+        '{hostname_info}\n\n'
+        
+        '# Expected output here is ${{ID}}_1.fastq and ${{ID}}_2.fastq if PE\n'
+        '# If SE the expected output is ${{ID}}.fastq\n'
+        '# the # in -o will get replaced by _1 and _2\n'
+        '{exe_bam2fastq} --force -o ${{ID}}#.fastq $inBam >> $logFile 2>&1\n\n'
+        
+        '\treadGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
+        
+        '### Checks for PE output... will align SE vs PE accordingly\n'
+        'alignPrefix=${{ID}}.bwa.tmp\n'
+        'if [ $(find . -name *${{ID}}_1.fastq) ]; then\n\n'
+        
+        '\t# Aln first end\n'
+        '{exe_bwa} aln {app_parameters} -t {max_cores} {ref_ref} ${{ID}}_1.fastq > ${{ID}}_1.sai 2>> $logFile\n\n'
 
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outBam=$2\n'
-           'readGroupStr=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n\n'
-
-           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
-
-           + hostname_info() + '\n\n'
-
-           '# Expected output here is ${ID}_1.fastq and ${ID}_2.fastq if PE\n'
-           '# If SE the expected output is ${ID}.fastq\n'
-           '# the # in -o will get replaced by _1 and _2\n'
-           + exe_config['bam2fastq'] + ' --force -o ${ID}#.fastq $inBam >> $logFile 2>&1\n\n'
-
-            '\treadGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
-
-            '### Checks for PE output... will align SE vs PE accordingly\n'
-            'alignPrefix=${ID}.bwa.tmp\n'
-            'if [ $(find . -name *${ID}_1.fastq) ]; then\n\n'
-
-            '\t# Aln first end\n'
-            '\t' + exe_config['bwa'] + ' aln ' + kwargs.get('app_parameters') + ' -t ' + str(kwargs.get('max_cores')) + ' ' +
-           ref_config['ref'] + ' ${ID}_1.fastq > ${ID}_1.sai 2>> $logFile\n\n'
-
-            '\t# Aln second end\n'
-            '\t' + exe_config['bwa'] + ' aln ' + kwargs.get('app_parameters') + ' -t ' + str(kwargs.get('max_cores')) + ' ' + ref_config[
-               'ref'] + ' ${ID}_1.fastq > ${ID}_2.sai 2>> $logFile\n\n'
-
-                        '\t# Coordinate pairs via sampe & insert the proper read group info\n'
-                        '\t' + exe_config['bwa'] + ' sampe -P -r "$readGroup" ' + ref_config[
-               'ref'] + ' ${ID}_1.sai ${ID}_2.sai '
-                        '${ID}_1.fastq ${ID}_2.fastq 2>> $logFile | ' + exe_config[
-               'samtools'] + ' view -b - 2>> $logFile | '
-           + exe_config['novosort'] + ' --threads ' + str(int(kwargs.get('max_cores') / 4)) + ' --ram ' + str(
-        int(kwargs.get('max_mem') / 2)) + 'M --tmpcompression 6 '
-                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-
-                          'else\n'
-                          '\t# Aln\n'
-                          '\t' + exe_config['bwa'] + ' aln ' + kwargs.get('app_parameters') + ' -t ' + str(kwargs.get('max_cores')) + ' ' + ref_config[
-               'ref'] + ' ${ID}.fastq > ${ID}.sai 2>> $logFile\n\n'
-
-                        '\t# Inserts the proper read group info & samse step\n'
-                        '\t' + exe_config['bwa'] + ' samse -r $readGroup ' + ref_config['ref'] +
-           ' ${ID}.sai ${ID}.fastq 2>> $logFile | ' + exe_config['samtools'] + ' view -b - 2>> $logFile | '
-           + exe_config['novosort'] + ' --threads ' + str(int(kwargs.get('max_cores') / 4)) + ' --ram ' + str(
-        int(kwargs.get('max_mem')) / 2) + 'M --tmpcompression 6 '
-                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-
-                          'fi\n\n'
-
-           + eof_check('outBam'))
+        '\t# Aln second end\n'
+        '{exe_bwa} aln {app_parameters} -t {max_cores} {ref_ref} ${{ID}}_2.fastq > ${{ID}}_2.sai 2>> $logFile\n\n'
+        
+        '\t# Coordinate pairs via sampe & insert the proper read group info\n'
+        # '\t{exe_bwa} sampe -P -r "$readGroup" {ref_ref} ${{ID}}_1.sai ${{ID}}_2.sai ${{ID}}_1.fastq ${{ID}}_2.fastq '
+        #     '2>> $logFile | {exe_samtools} view -b - 2>> $logFile | {exe_novosort} --threads {max_cores_div_4} '
+        #     '--ram {max_mem_div_2}M --tmpcompression 6 --tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+        '\t{exe_bwa} sampe -P -r "$readGroup" {ref_ref} ${{ID}}_1.sai ${{ID}}_2.sai ${{ID}}_1.fastq ${{ID}}_2.fastq '
+            '2>> $logFile | {exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam - 2>> $logFile\n'
+        '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
+        
+        'else\n'
+        '\t# Aln\n'
+        '\t{exe_bwa} aln {app_parameters} -t {max_cores} {ref_ref} ${{ID}}.fastq > ${{ID}}.sai 2>> $logFile\n\n'
+        
+        '\t# Inserts the proper read group info & samse step\n'
+        # '\t{exe_bwa} samse -r $readGroup {ref_ref} ${{ID}}.sai ${{ID}}.fastq 2>> $logFile | {exe_samtools} view -b - '
+        #     '2>> $logFile | {exe_novosort} --threads {max_cores_div_4} --ram {max_mem_div_2}M --tmpcompression 6 '
+        #     '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+        '\t{exe_bwa} samse -r $readGroup {ref_ref} ${{ID}}.sai ${{ID}}.fastq 2>> $logFile | {exe_samtools} view -b - '
+            '2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} --memory-limit={max_mem_div_2}M '
+            '--tmpdir=$tmpDir --out=$outBam - 2>> $logFile\n'
+        '{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
+        
+        'fi\n\n'
+        
+        '{eof_check}\n'
+    )
 
     write_wrapper(
         filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
-        contents=wrapper,
+        contents=wrapper.format(
+            hostname_info=hostname_info(),
+            eof_check=eof_check('outBam'),
+            exe_bam2fastq=exe_config['bam2fastq'],
+            exe_bwa=exe_config['bwa'],
+            exe_samtools=exe_config['samtools'],
+            # exe_novosort=exe_config['novosort'],
+            exe_sambamba=exe_config['sambamba'],
+            ref_ref=ref_config['ref'],
+            max_cores_div_4=kwargs.get('max_cores') / 4,
+            max_mem_div_2=kwargs.get('max_mem') / 2,
+            **kwargs
+        ),
         executable=True
     )
 
@@ -1277,98 +1311,111 @@ def compose_BwaMem(app_name, **kwargs):
     exe_config = kwargs.get('exe_config')
     ref_config = kwargs.get('ref_config')
 
-    wrapper = ('#!/bin/bash\n\n'
+    wrapper = (
+        '#!/bin/bash\n\n'
 
-           'set -e\n\n'
+        'set -e\n\n'
 
-           'inBam=$1\n'
-           'outBam=$2\n'
-           'RGname=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n\n'
-
-           'export PATH=' + kwargs.get('env_PATH') + '\n'
-           'export LD_LIBRARY_PATH=' + kwargs.get('env_LD_LIBRARY_PATH') + '\n\n'
-
-             'tmpDir=$(pwd)/${ID}/NovoSortBwa\n'
-             'mkdir -p -v $tmpDir\n\n'
-
-           + hostname_info() + '\n\n'
-
-           '# Get read group string... could make this cleaner\n'
-           'readGroup=$(' + exe_config[
-               'samtools'] + ' view -H $inBam 2>> $logFile | grep "@RG"| grep $RGname | sed "s:\t:\\t:g" | sed "s:\t:\\t:g")\n\n'
-
-                 'echo Read group: $RGname >> $logFile\n\n'
-
-                 '# Will default to PE... is wc -l > 0 then a PE run will be initated\n'
-                 'numPairedReads=$(' + exe_config[
-               'samtools'] + ' view -b -r $RGname -f 0x1 $inBam | head -25000 | wc -l)\n\n'
-
-                             'if [ "$numPairedReads" -gt "0" ]; then\n'
-           + ('\t' * 1) + 'echo File $inBam appears to contain PAIRED END fastq data... >> $logFile\n'
-           + ('\t' * 1) + 'echo Extracting and aligning PAIRED END data... >> $logFile\n\n'
-
-           + ('\t' * 1) + 'fastq1=${ID}_1.fastq\n'
-           + ('\t' * 1) + 'fastq2=${ID}_2.fastq\n\n'
-
-           + ('\t' * 1) + '# Paired end data... rm existing and make named pipes\n'
-           + ('\t' * 1) + 'rm -f $fastq1\n'
-           + ('\t' * 1) + 'rm -f $fastq2\n\n'
-           + ('\t' * 1) + 'mkfifo $fastq1\n'
-           + ('\t' * 1) + 'mkfifo $fastq2\n\n'
-
-           + ('\t' * 1) + '# Unpaired fastq will be discarded into /dev/null\n'
-           + ('\t' * 1) + exe_config['samtools'] + ' view -b -r $RGname $inBam 2>> $logFile | '
-           + exe_config['bamutil'] + ' bam2FastQ --in -.bam --noeof --firstOut $fastq1 --secondOut '
-                                  '$fastq2 --unpairedOut /dev/null 2>> $logFile &\n\n'
-
-           + ('\t' * 1) + '# Aln PE -M by default for Picard compatibility\n'
-           + ('\t' * 1) + exe_config['bwa'] + ' mem ' + kwargs.get('app_parameters') + ' -M -t ' + str(kwargs.get('max_cores')) + ' -R "$readGroup" ' +
-           ref_config['ref'] +
-           ' $fastq1 $fastq2 2>> $logFile | ' + exe_config['samtools'] + ' view -b - 2>> $logFile | '
-           + exe_config['novosort'] + ' --threads ' + str(int(kwargs.get('max_cores') / 4)) + ' --ram ' + str(
-        int(kwargs.get('max_mem')) / 2) + 'M --tmpcompression 6 '
-                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-
-           + ('\t' * 1) + '# remove fifo variables/objects\n'
-           + ('\t' * 1) + 'rm $fastq1\n'
-           + ('\t' * 1) + 'rm $fastq2\n\n'
-
-                          'else\n'
-           + ('\t' * 1) + '#Will be single end\n'
-           + ('\t' * 1) + 'echo File $inBam appears to contain SINGLE END fastq data... >> $logFile\n'
-           + ('\t' * 1) + 'echo Extracting and aligning SINGLE END data... >> $logFile\n\n'
-
-           + ('\t' * 1) + 'fastq=${ID}.fastq\n\n'
-
-           + ('\t' * 1) + '# Single end data... make named pipes\n'
-           + ('\t' * 1) + 'rm -f $fastq\n\n'
-           + ('\t' * 1) + 'mkfifo $fastq\n\n'
-
-           + ('\t' * 1) + '# end 1 and end 2 fastq will be discarded into /dev/null\n'
-           + ('\t' * 1) + exe_config['samtools'] + ' view -b -r $RGname $inBam 2>> $logFile | '
-           + exe_config['bamutil'] + ' bam2FastQ --in -.bam --noeof --firstOut /dev/null --secondOut '
-                                  '/dev/null --unpairedOut $fastq 2>> $logFile &\n\n'
-
-           + ('\t' * 1) + exe_config['bwa'] + ' mem ' + kwargs.get('app_parameters') + ' -M -t ' + str(kwargs.get('max_cores')) + ' -R "$readGroup" ' +
-           ref_config['ref'] +
-           ' $fastq 2>> $logFile | ' + exe_config['samtools'] + ' view -b - 2>> $logFile | '
-           + exe_config['novosort'] + ' --threads ' + str(int(kwargs.get('max_cores')) / 4) + ' --ram ' + str(
-            int(kwargs.get('max_mem')) / 2) + 'M --tmpcompression 6 '
-                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-
-           + ('\t' * 1) + '# remove fifo variables/objects\n'
-           + ('\t' * 1) + 'rm $fastq\n\n'
-
-                          'fi\n\n'
-
-           + eof_check('outBam'))
+        'inBam=$1\n'
+        'outBam=$2\n'
+        'RGname=$3\n'
+        'logFile=$4\n'
+        'ID=$5\n'
+        'dir=$6\n\n'
+        
+        'export PATH={env_PATH}\n'
+        'export LD_LIBRARY_PATH={env_LD_LIBRARY_PATH}\n\n'
+        
+        # 'tmpDir=$(pwd)/${{ID}}/NovoSortBwa\n'
+        'tmpDir=$(pwd)/${{ID}}/SambambaBwa\n'
+        'mkdir -p -v $tmpDir\n\n'
+        
+        '{hostname_info}\n\n'
+        
+        '# Get read group string... could make this cleaner\n'
+        'readGroup=$({exe_samtools} view -H $inBam 2>> $logFile | grep "@RG"| grep $RGname | '
+            'sed "s:\t:\\t:g" | sed "s:\t:\\t:g")\n\n'
+        
+        'echo Read group: $RGname >> $logFile\n\n'
+        '# Will default to PE... is wc -l > 0 then a PE run will be initiated\n'
+        'numPairedReads=$({exe_samtools} view -b -r $RGname -f 0x1 $inBam | head -25000 | wc -l)\n\n'
+        
+        'if [ "$numPairedReads" -gt "0" ]; then\n'
+        '\techo File $inBam appears to contain PAIRED END fastq data... >> $logFile\n'
+        '\techo Extracting and aligning PAIRED END data... >> $logFile\n\n'
+        
+        '\tfastq1=${{ID}}_1.fastq\n'
+        '\tfastq2=${{ID}}_2.fastq\n\n'
+        
+        '\t# Paired end data... rm existing and make named pipes\n'
+        '\trm -f $fastq1\n'
+        '\trm -f $fastq2\n\n'
+        
+        '\tmkfifo $fastq1\n'
+        '\tmkfifo $fastq2\n\n'
+        
+        '\t# Unpaired fastq will be discarded into /dev/null\n'
+        '\t{exe_samtools} view -b -r $RGname $inBam 2>> $logFile | {exe_bamutil} bam2FastQ --in -.bam --noeof '
+            '--firstOut $fastq1 --secondOut $fastq2 --unpairedOut /dev/null 2>> $logFile &\n\n'
+        
+        '\t# Aln PE -M by default for Picard compatibility\n'
+        # '\t{exe_bwa} mem {app_parameters} -M -t {max_cores} -R "$readGroup" {ref_ref} $fastq1 $fastq2 2>> $logFile | '
+        #     '{exe_samtools} view -b - 2>> $logFile | {exe_novosort} --threads {max_cores_div_4} --ram {max_mem_div_2}M '
+        #     '--tmpcompression 6 --tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+        '\t{exe_bwa} mem {app_parameters} -M -t {max_cores} -R "$readGroup" {ref_ref} $fastq1 $fastq2 2>> $logFile | '
+            '{exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam - 2>> $logFile\n'
+        '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
+        
+        '\t# remove fifo variables/objects\n'
+        '\trm $fastq1\n'
+        '\trm $fastq2\n\n'
+        'else\n'
+        '\t#Will be single end\n'
+        '\techo File $inBam appears to contain SINGLE END fastq data... >> $logFile\n'
+        '\techo Extracting and aligning SINGLE END data... >> $logFile\n\n'
+        
+        '\tfastq=${{ID}}.fastq\n\n'
+        
+        '\t# Single end data... make named pipes\n'
+        '\trm -f $fastq\n'
+        '\tmkfifo $fastq\n\n'
+        
+        '\t# end 1 and end 2 fastq will be discarded into /dev/null\n'
+        '\t{exe_samtools} view -b -r $RGname $inBam 2>> $logFile | {exe_bamutil} bam2FastQ --in -.bam --noeof '
+            '--firstOut /dev/null --secondOut /dev/null --unpairedOut $fastq 2>> $logFile &\n\n'
+        
+        # '\t{exe_bwa} mem {app_parameters} -M -t {max_cores} -R "$readGroup" {ref_ref} $fastq 2>> $logFile | '
+        #     '{exe_samtools} view -b - 2>> $logFile | {exe_novosort} --threads {max_cores_div_4} --ram {max_mem_div_2}M '
+        #     '--tmpcompression 6 --tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
+        '\t{exe_bwa} mem {app_parameters} -M -t {max_cores} -R "$readGroup" {ref_ref} $fastq 2>> $logFile | '
+            '{exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam - 2>> $logFile\n'
+        '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
+        
+        '\t# remove fifo variables/objects\n'
+        '\trm $fastq\n\n'
+        
+        'fi\n\n'
+        
+        '{eof_check}\n'
+    )
 
     write_wrapper(
         filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
-        contents=wrapper,
+        contents=wrapper.format(
+            hostname_info=hostname_info(),
+            eof_check=eof_check('outBam'),
+            exe_samtools=exe_config['samtools'],
+            exe_bamutil=exe_config['bamutil'],
+            exe_bwa=exe_config['bwa'],
+            # exe_novosort=exe_config['novosort'],
+            exe_sambamba=exe_config['sambamba'],
+            ref_ref=ref_config['ref'],
+            max_cores_div_4=kwargs.get('max_cores') / 4,
+            max_mem_div_2=kwargs.get('max_mem') / 2,
+            **kwargs
+        ),
         executable=True
     )
 
@@ -1840,1627 +1887,6 @@ def compose_Strelka(app_name, **kwargs):
         executable=True
     )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def printGatkIndelRealnment(run, appName, parameters):
-    """ Params needed: tmp, samtools, java, gcFlag, javaMem, gatk, ref,
-     indels1kg, indelsMills
-
-     May need to break this up into two sections to account for params of both steps"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outBam=$2\n'
-           'logFile=$3\n'
-           'ID=$4\n'
-           'dir=$5\n'
-           'contig=$6\n\n'
-
-           'tmpDir=' + run.tmp + '/${ID}.${contig}/GatkRecal\n'
-                                 'mkdir -p -v $tmpDir\n\n'
-
-                                 'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outBam', 'intervals'])
-
-           + getGatkContigCheckString()
-
-           + getBamIndexingString(run.exe['samtools'], 'inBam') +
-
-           '# Identify suspicious intervals\n'
-           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
-               'gatk']
-           + ' -I $inBam $contigParam -R ' + run.ref['ref'] + ' -T RealignerTargetCreator '
-                                                              '-known' + run.ref['indels1kg'] + ' -known ' + run.ref[
-               'indelsMills'] + ' -o $intervals  >> $logFile 2>&1\n\n'
-
-                                '# Perform local realingment using the intervals identified above\n'
-           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
-               'gatk']
-           + ' -I $inBam $contigParam -R ' + run.ref['ref'] + ' -T IndelRealigner ' + parameters + ' -known '
-           + run.ref['indels1kg'] + ' -known ' + run.ref[
-               'indelsMills'] + ' -targetIntervals $intervals -o $outBam >> $logFile 2>&1\n\n'
-
-                                '# Erase the temporary directory\n'
-                                'rm -rf $tmpDir\n\n'
-
-           + getEofCheckStr('outBam'))
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printGatkBqsrGrp(run, appName, parameters):
-    """ NEED TO ADD CONTIG TO THE ACTUAL SWIFT CODE
-
-    ^ Meaning it needs to be passed the name of the contig? """
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outGrp=$2\n'
-           'logFile=$3\n'
-           'ID=$4\n'
-           'dir=$5\n\n'
-
-           'tmpDir=$(pwd)/${ID}.${contig}/GatkRecal\n'
-           'mkdir -p -v $tmpDir\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outGrp'])
-
-           + getGatkContigCheckString()
-
-           + getBamIndexingString(run.exe['samtools'], 'inBam') +
-
-           '# Do base quality recalibration to produce grp file\n'
-           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
-               'gatk']
-           + ' -I $inBam -R ' + run.ref['ref'] + ' -T BaseRecalibrator ' + parameters +
-           ' -knownSites ' + run.ref['dbSnpVcf'] + ' -knownSites ' + run.ref['indelsMills']
-           + ' -knownSites ' + run.ref['indels1kg'] + ' -o $outGrp >> $logFile 2>&1\n\n'
-
-                                                      '# Erase the temporary directory\n'
-                                                      'rm -rf $tmpDir\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printGatkBqsr(run, appName, parameters):
-    """yep"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outBam=$2\n'
-           'grp=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n\n'
-
-           'tmpDir=$(pwd)/${ID}/GatkBqsrPrint\n'
-           'mkdir -p -v $tmpDir\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outBam'])
-
-           + getBamIndexingString(run.exe['samtools'], 'inBam') +
-
-           '# Generate recalibrated bam\n'
-           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
-               'gatk'] +
-           ' -I $inBam -R ' + run.ref['ref'] + ' -T PrintReads -BQSR $grp -o $outBam >> \$logFile 2>&1\n\n'
-
-                                               '# Erase the temporary directory\n'
-                                               'rm -rf $tmpDir\n\n'
-
-           + getEofCheckStr('outBam'))
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printGatkBqsrGrpReduce(run, appName, parameters):
-    """Don't allow this wrapper to be altered by users. Should be an
-    under-the-hood process"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'outGrp=$1\n'
-           'logFile=$2\n'
-           'ID=$3\n'
-           'dir=$4\n'
-           'shift 4\n'
-           '# Load grps into this variable\n'
-           'inGrp=$*\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString() +
-
-           'export CLASSPATH=' + run.exe['gatkQueue'] + ':' + run.grpReduceDir + '\n\n'
-
-                                                                                 '# Will check if bam had data in it\n'
-                                                                                 '# if it does not the file will not be passed to the reduce grps step\n'
-                                                                                 'inGrps=""\n'
-                                                                                 'for file in $inGrp;do\n'
-                                                                                 '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
-                                                                                 '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
-                                                                                 '\telse\n'
-                                                                                 '\t\tinGrps=$inGrps" "$file\n'
-                                                                                 '\tfi\n'
-                                                                                 'done\n\n'
-
-                                                                                 '# reduce grps\n'
-           + run.exe['java'] + ' ' + run.grpReduce + ' $outGrp $inGrps >> $logFile 2>&1')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printSamtoolsFlagstat(run, appName, parameters):
-    """ ff"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outStats=$2\n'
-           'logFile=$3\n'
-           'ID=$4\n'
-           'dir=$5\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString() +
-
-           '# get flagstats results\n'
-           + run.exe['samtools'] + ' flagstat $inBam 2>> $logFile > $outStats\n\n'
-
-                                   '# Could check for successful completion here')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printIndexBam(run, appName, parameters):
-    """ ff"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outIndex=$2\n'
-           'logFile=$3\n'
-           'ID=$4\n'
-           'dir=$5\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outIndex']) +
-
-           '# index the bam\n'
-           + run.exe['samtools'] + ' index $inBam 2>> $logFile\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printPicardMarkDuplicates(run, appName, parameters):
-    """dd"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outBam=$2\n'
-           'logFile=$3\n'
-           'metrics=$4\n'
-           'ID=$5\n'
-           'dir=$6\n\n'
-
-           'tmpDir=$(pwd)/${ID}/PicardMarkDupl\n'
-           'mkdir -p -v $tmpDir\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outBam', 'metrics']) +
-
-           '## Sorting should not be necessary here.. handle in aln wrappers\n\n'
-
-           '## Here need to be sure you are specifying validation stringency in json\n'
-           '## Also need to specify what should be done with duplicates\n'
-           + run.exe['java'] + ' ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe[
-               'markDuplicates'] + ' INPUT=$inBam '
-                                   'OUTPUT=$outBam METRICS_FILE=$metrics TMP_DIR=$tmpDir ' + parameters + ' >> $logFile 2>&1\n\n'
-
-                                                                                                          '# Erase the temporary directory\n'
-                                                                                                          'rm -rf $tmpDir\n\n'
-
-           + getEofCheckStr('outBam'))
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printBedtoolsGenomeCoverage(run, appName, parameters):
-    """heh heh """
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outCov=$2\n'
-           'outDoC=$3\n'
-           'logFile=$4\n'
-           'prefix=$5\n'
-           'dir=$6\n\n'
-
-           'export PATH=' + run.PATH + '\n'
-                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
-
-           + getHostnameString() +
-
-           '# Get coverage via bedtools and grep out genome info\n'
-           + run.exe['genomeCoverageBed'] + ' -ibam $inBam  -g ' + run.ref[
-               'ref'] + ' | grep genome > $outCov 2>> $logFile\n'
-
-           + run.exe['python'] + ' ' + run.getDoC + ' $outCov 2>> $logFile > $outDoC\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printRgMergeSort(run, appName, parameters):
-    """pass in contigs file, parse within wrapper
-
-    No longer checking for EOF marker
-
-    set -e is commented out for now"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           '#set -e\n\n'
-
-           'sampleContigs=$1\n'
-           'logFile=$2\n'
-           'ID=$3\n'
-           'dir=$4\n'
-           '# Be sure this shift is properly picking up all bams\n'
-           'shift 4\n'
-           '# Load all the rest in this variable\n'
-           'inBam=$*\n\n'
-
-           'export PATH=' + run.PATH + '\n'
-                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
-
-           + getHostnameString() +
-
-           'tmpDir=$(pwd)\n\n'
-
-           '# Will check if bam has data in it'
-           '# if it does not the file will be ignored at the Novosort step\n'
-           'inBams=""\n'
-           'for file in $inBam;do\n'
-           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
-           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
-           '\telse\n'
-           '\t\tinBams=$inBams" "$file\n'
-           '\tfi\n'
-           'done\n\n'
-
-           'absDirName=$(dirname $logFile)\n'
-
-           '# Use Novosort\n'
-           + run.exe['novosort'] + ' --threads ' + str(run.maxCores) + ' --ram ' + str(
-        run.maxMem) + 'M --tmpcompression 6 '
-                      '--tmpdir $tmpDir $inBams 2>> $logFile | ' + run.exe[
-               'bamutil'] + ' splitChromosome --in -.bam --out '
-                            '${absDirName}/${ID}.contig. --noef 2>> $logFile\n\n'
-
-                            '# declare array\n'
-                            'declare -a outBams\n'
-                            '# Load file into array.\n'
-                            'let i=0\n'
-                            'while IFS=$"\n" read -r line_data; do\n'
-                            '\techo Contig file: ${line_data} >> $logFile\n'
-                            '\toutBams[i]="${line_data}"\n'
-                            '\t((++i))\n'
-                            'done < $sampleContigs\n\n'
-
-                            '# Test if the contig files exist... if not echo no_mapped_reads\n'
-                            'for outBam in "${outBams[@]}";do\n'
-                            '\tif [[ ! -s $outBam ]]; then\n'
-                            '\t\techo $outBam: no_mapped_reads >> $logFile 2>&1\n'
-                            '\t\techo no_mapped_reads > $outBam 2>> $logFile\n'
-                            '\telse\n'
-                            '\t\ttrue\n'
-                            '\tfi\n'
-                            'done\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-# TEMPORARY SOLUTION... WILL MAKE FLEXIBLE TO SAMTOOLS AS WELL
-def printContigMergeSort(run, appName, parameters):
-    """This can potentially be used on contigs as well as read groups... check
-    when actually using Swift"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'outBam=$1\n'
-           'logFile=$2\n'
-           'ID=$3\n'
-           'dir=$4\n'
-           '# Be sure this shift is properly picking up all bams\n'
-           'shift 4\n'
-           '# Load all the rest in this variable\n'
-           'inBam=$*\n\n'
-
-           'export PATH=' + run.PATH + '\n'
-                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
-
-           + getHostnameString() +
-
-           'tmpDir=$(pwd)/${ID}/NovoSortMergeSort\n'
-           'mkdir -p -v $tmpDir\n\n'
-
-           '# Will check if bam has data in it\n'
-           '# if it does not the file will be ignored at the Novosort step\n'
-           'inBams=""\n'
-           'for file in $inBam;do\n'
-           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
-           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
-           '\telse\n'
-           '\t\tinBams=$inBams" "$file\n'
-           '\tfi\n'
-           'done\n\n'
-
-           '# Use Novosort\n'
-           'echo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
-           + run.exe['novosort'] + ' --threads ' + str(run.maxCores) + ' --ram ' + str(
-        run.maxMem) + 'M --tmpcompression 6 '
-                      '--tmpdir $tmpDir --output $outBam --index $inBams >> $logFile 2>&1\n\n'
-
-           + getEofCheckStr('outBam'))
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-"""
-def printConcatVcf(run, appName, parameters):
-	''' ff'''
-	
-	Str = ('#!/bin/bash\n\n'
-	
-			'set -e\n\n'
-
-			'outVcf=$1\n'
-			'logFile=$2\n'
-			'ID=$3\n'
-			'dir=$4\n'
-			'shift 4\n'
-			'# Load all the rest in this variable\n'
-			'contigVcfs=$*\n\n'
-			
-			'export PATH=' + run.PATH + '\n\n'
-			
-			+ getHostnameString() +
-			
-			'# Will check if file had data in it\n'
-			'# if it does not the file will not be passed to the reduce vcfs step\n'
-			'inVcfs=""\n'
-			'for file in $contigVcfs;do\n'
-				'\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
-					'\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
-				'\telse\n'
-					'\t\tinVcfs=$inVcfs" "$file\n'
-					'\t\theaderVcf=$file\n'
-				'\tfi\n'
-			'done\n\n'
-			
-			'#Test if at least one vcf contains variants\n'
-			'if [ "$inVcfs" == "" ]; then\n'
-				'\techo All vcfs contained no_mapped_reads...exiting >> $logFile 2>&1\n'
-				'\techo no_mapped_reads > $outVcf\n'
-				'\texit 0\n'
-			'else\n'
-				'\techo At least one bam contains mapped reads...continuing... >> $logFile 2>&1\n'
-			'fi\n\n'
-			
-			'tmpVcf=$(basename $outVcf).tmp\n\n'
-			
-			'# Cat vcfs together\n'
-			'(cat $headerVcf | head -5000 | grep ^#; '
-			'cat $inVcfs | grep -v ^#;) 2>> $logFile > $tmpVcf\n\n'
-			
-			'# Sort Vcf\n'
-			'(cat $tmpVcf | head -5000 | grep ^#;'
-			'cat $tmpVcf | grep -v ^# | sort -k1,1d -k2,2n;) > $outVcf\n')
-			
-	filename = appName + '.sh'
-	# call fxn to print the wrapper created above
-	printFile(run.wrapperDir, filename, Str, True)
-"""
-
-
-def printConcatVcf(run, appName, parameters):
-    """ Uses sortByRef from GATK's Geraldine"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           '#set -e\n\n'
-
-           'outVcf=$1\n'
-           'logFile=$2\n'
-           'ID=$3\n'
-           'dir=$4\n'
-           'shift 4\n'
-           '# Load all the rest in this variable\n'
-           'contigVcfs=$*\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString() +
-
-           '# Will check if file had data in it\n'
-           '# if it does not the file will not be passed to the reduce vcfs step\n'
-           'inVcfs=""\n'
-           'for file in $contigVcfs;do\n'
-           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
-           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
-           '\telse\n'
-           '\t\tinVcfs=$inVcfs" "$file\n'
-           '\t\theaderVcf=$file\n'
-           '\tfi\n'
-           'done\n\n'
-
-           '#Test if at least one vcf contains variants\n'
-           'if [ "$inVcfs" == "" ]; then\n'
-           '\techo All vcfs contained no_mapped_reads...exiting >> $logFile 2>&1\n'
-           '\techo no_mapped_reads > $outVcf\n'
-           '\texit 0\n'
-           'else\n'
-           '\techo At least one bam contains mapped reads...continuing... >> $logFile 2>&1\n'
-           'fi\n\n'
-
-           'tmpVcf=$(basename $outVcf).tmp\n\n'
-
-           '# Cat vcfs together\n'
-           'cat $inVcfs | grep -v "^#\|^chrom" 2>> $logFile > $tmpVcf\n\n'
-
-           '# Sort Vcf... sed to create proper headers for VarScan vcfs\n'
-           'head -5000 $headerVcf | grep "^#\|^chrom" | sed ":^chrom: s:chrom:#chrom:" 2>> $logFile > $outVcf\n'
-           'perl ' + os.path.join(run.utilitiesDir, 'sortByRef.pl') + ' $tmpVcf ' + run.ref[
-               'ref'] + '.fai 2>> $logFile >> $outVcf\n\n'
-
-                        'echo sorting complete >> $logFile\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printSamtoolsParseContig(run, appName, parameters):
-    """ ttt"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'inBamIndex=$2\n'
-           'outBam=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n'
-           'contig=$7\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString() +
-
-           '# Check for the unmapped as the contig\n'
-           'if [ "$contig" == "unmapped" ]; then\n'
-           '\tcontigParam="-f 4"\n'
-           'else\n'
-           '\tcontigParam="$contig"\n'
-           'fi\n\n'
-
-           '# Extract each contig\n'
-           + run.exe['samtools'] + ' view -b $inBam $contigParam 2>> $logFile > $outBam\n\n'
-
-           + getEofCheckStr('outBam') +
-
-           '# Look into the bam via samtools view and determine if the file contains\n'
-           '# mapped reads. Could look into making this more efficient\n'
-           'dataString=$(' + run.exe['samtools'] + ' view $outBam | head)\n'
-                                                   'if [[ $? != 0 ]]; then\n'
-                                                   '\techo "Error from samtools view on read check... exiting 1" >> $logFile 2>&1\n'
-                                                   '\texit 1\n'
-                                                   'elif [[ -n $dataString ]]; then\n'
-                                                   '\techo "bam ($outBam) contains mapped reads... exiting 0" >> $logFile 2>&1\n'
-                                                   '\texit 0\n'
-                                                   'else\n'
-                                                   '\techo "No mapped reads found in $outBam" >> $logFile 2>&1\n'
-                                                   '\t# Will subsequently check for header below\n'
-                                                   'fi\n\n'
-
-                                                   '# Looks to see if the outBam has a header\n'
-                                                   'dataString=$(' + run.exe['samtools'] + ' view -H $outBam)\n'
-                                                   'if [[ $? != 0 ]]; then\n'
-                                                   '\techo "Error from samtools view on read check... exiting 1" >> $logFile 2>&1\n'
-                                                   '\texit 1\n'
-                                                   'elif [[ -n $dataString ]]; then\n'
-                                                   '\techo "bam ($outBam) contains a header but no mapped reads..." >> $logFile 2>&1\n'
-                                                   '\techo "$outBam will be populated with no_mapped_reads... exiting 0" >> $logFile 2>&1\n'
-                                                   '\techo "no_mapped_reads" > $outBam\n'
-                                                   '\texit 0\n'
-                                                   'else\n'
-                                                   '\t# Likely should not ever get here\n'
-                                                   '\techo "No header found in $outBam... exiting 1" >> $logFile 2>&1\n'
-                                                   '\texit 1\n'
-                                                   'fi\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printDellyGerm(run, appName, parameters):
-    """333"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'inBamIndex=$2\n'
-           'outVcf=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n'
-           'analysisType=$7\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outVcf']) +
-
-           '# Initialize delly output file... if no struct vars Delly does\n'
-           '# not appear to produce a vcf\n'
-           'echo no_mapped_reads > $outVcf\n\n'
-
-           '# Call with delly\n'
-           + run.exe['delly'] + ' -g ' + run.ref[
-               'ref'] + ' -o $outVcf ' + parameters + ' -t $analysisType $inBam >> $logFile 2>&1\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printSnpEff(run, appName, parameters):
-    """Like with a few other wrappers, need to add a random component to
-    the tmp dir generation... otherwise with two callers operating on
-    the same chr there may be removal conflicts at this step"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inVcf=$1\n'
-           'outVcf=$2\n'
-           'logFile=$3\n'
-           'ID=$4\n'
-           'dir=$5\n\n'
-
-           'tmpDir=$(pwd)/${ID}/snpEff\n'
-           'mkdir -p -v $tmpDir\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString() +
-
-           '# Check to see if the vcf has data\n'
-           '# If not, write no_mapped_reads to outVcf\n'
-           + getNoMappedReadsStrCheck('inVcf', ['outVcf']) +
-
-           'export data_dir=$' + run.ref['snpEffDataDir'] + '\n\n'
-
-                                                            '# Execute snpEff\n'
-           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.gcFlag + ' ' + run.javaMem + ' -jar '
-           + run.exe['snpEff'] + ' -v ' + run.ref['snpEffBuild'] + ' -c ' + run.ref['snpEffConfig'] +
-           ' ' + parameters + ' $inVcf 2>> $logFile > $outVcf\n\n'
-
-                              '# Erase the temporary directory\n'
-                              'rm -rf \$tmpDir\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printBwaAln(run, appName, parameters):
-    """Note that maxCores on the sampe or samse steps assumes that bwa tpx is
-    being used. May need to find a good way of handling this.
-
-    Need to also handle the fact that novosort is not open source... will
-    have to replace this with te multi-threaded version of samtools sort
-
-    Need to change this so tpx is not used
-
-    Removed novosort for scalability
-
-    """
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outBam=$2\n'
-           'readGroupStr=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString() +
-
-           '# Expected output here is ${ID}_1.fastq and ${ID}_2.fastq if PE\n'
-           '# If SE the expected output is ${ID}.fastq\n'
-           '# the # in -o will get replaced by _1 and _2\n'
-           + run.exe['bam2fastq'] + ' --force -o ${ID}#.fastq $inBam >> $logFile 2>&1\n\n'
-
-                                    '\treadGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
-
-                                    '### Checks for PE output... will align SE vs PE accordingly\n'
-                                    'alignPrefix=${ID}.bwa.tmp\n'
-                                    'if [ $(find . -name *${ID}_1.fastq) ]; then\n\n'
-
-                                    '\t# Aln first end\n'
-                                    '\t' + run.exe['bwa'] + ' aln ' + parameters + ' -t ' + str(run.maxCores) + ' ' +
-           run.ref['ref'] + ' ${ID}_1.fastq > ${ID}_1.sai 2>> $logFile\n\n'
-
-                            '\t# Aln second end\n'
-                            '\t' + run.exe['bwa'] + ' aln ' + parameters + ' -t ' + str(run.maxCores) + ' ' + run.ref[
-               'ref'] + ' ${ID}_1.fastq > ${ID}_2.sai 2>> $logFile\n\n'
-
-                        '\t# Coordinate pairs via sampe & insert the proper read group info\n'
-                        '\t' + run.exe['bwa'] + ' sampe -P -r "$readGroup" ' + run.ref[
-               'ref'] + ' ${ID}_1.sai ${ID}_2.sai '
-                        '${ID}_1.fastq ${ID}_2.fastq 2>> $logFile | ' + run.exe[
-               'samtools'] + ' view -b - 2>> $logFile | '
-           + run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(
-        run.maxMem / 2) + 'M --tmpcompression 6 '
-                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-
-                          'else\n'
-                          '\t# Aln\n'
-                          '\t' + run.exe['bwa'] + ' aln ' + parameters + ' -t ' + str(run.maxCores) + ' ' + run.ref[
-               'ref'] + ' ${ID}.fastq > ${ID}.sai 2>> $logFile\n\n'
-
-                        '\t# Inserts the proper read group info & samse step\n'
-                        '\t' + run.exe['bwa'] + ' samse -r $readGroup ' + run.ref['ref'] +
-           ' ${ID}.sai ${ID}.fastq 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
-           + run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(
-        run.maxMem / 2) + 'M --tmpcompression 6 '
-                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-
-                          'fi\n\n'
-
-           + getEofCheckStr('outBam'))
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printPlatypusGerm(run, appName, parameters):
-    """rrr
-
-    LD_LIBRARY_PATH necessary for Beagle
-    """
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'inBamIndex=$2\n'
-           'outVcf=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n'
-           'coords=$7\n\n'
-
-           'export PATH=' + run.PATH + '\n'
-                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# Genotype\n'
-           + run.exe['python'] + ' ' + run.exe[
-               'platypus'] + ' callVariants --nCPU ' + run.packingCores + ' --output $outVcf '
-                                                                          '--refFile ' + run.ref[
-               'ref'] + ' --regions $coords ' + parameters + ' --bamFiles $inBam >> $logFile 2>&1\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printScalpelGerm(run, appName, parameters):
-    """rrr
-
-    """
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'inBamIndex=$2\n'
-           'outVcf=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n'
-           'coords=$7\n\n'
-
-           'export PATH=' + run.PATH + '\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# Genotype\n'
-           + + run.exe['scalpel'] + ' --single --bam $inBam --bed $coords --numprocs ' + str(
-        int(run.packingCores) * 2) +
-           ' --ref ' + run.ref['ref'] + ' ' + parameters + ' > $outVcf 2>> $logFile\n\n'
-
-                                                           '# Move output to proper location\n'
-                                                           'mv ./outdir/variants.*.indel.vcf $outVcf\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printHaplotypeCaller(run, appName, parameters):
-    """eee
-
-    This is one wrapper that needs a random component to the tmp dir.
-    Could just have coords be involved
-
-    Parallel garbage collection not used here"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'inBamIndex=$2\n'
-           'outVcf=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n'
-           'coords=$7\n\n'
-
-           '# Cannot remove tmp dir at end of this script! Other processes\n'
-           '# will be using that dir as tmp\n'
-           'tmpDir=$(pwd)/${ID}/GatkHaplotypeCaller\n'
-           'mkdir -p -v $tmpDir\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inBam', ['outVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# Genotype\n'
-           + run.exe['java'] + ' -Djava.io.tmpdir=$tmpDir ' + run.ramPoolMem + ' -jar ' + run.exe['gatk'] +
-           ' -T HaplotypeCaller -R ' + run.ref['ref'] + ' -I $inBam -L $coords -nct ' + str(int(run.packingCores) * 2) +
-           ' --dbsnp ' + run.ref['dbSnpVcf'] + ' -o $outVcf ' + parameters + ' >> $logFile 2>&1\n\n'
-
-                                                                             '# TODO - integrate this back in\n'
-                                                                             '#rm -r $tmpDir\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-"""
-### NEED TO MAKE THIS WORK - Not complete!
-def printBwaMem(run, appName, parameters):
-	''' Fill this in '''
-	
-	# String literal to fix backslash issues
-	
-	Str = ('#!/bin/bash\n\n'
-	
-			'set -e\n\n'
-	
-			'inBam=$1\n'
-			'outBam=$2\n'
-			'readGroupStr=$3\n'
-			'logFile=$4\n'
-			'ID=$5\n'
-			'dir=$6\n\n'
-			
-			'export PATH=' + run.PATH + '\n\n'
-			
-			'tmpDir=$(pwd)/${ID}/NovoSortBwa\n'
-			'mkdir -p -v $tmpDir\n\n'
-			
-			+ getHostnameString() +
-			
-			'# Expected output here is ${ID}_1.fastq and ${ID}_2.fastq if PE\n'
-			'# If SE the expected output is ${ID}.fastq\n'
-			'# the # in -o will get replaced by _1 and _2\n'
-			+ run.exe['bam2fastq']  + ' --force -o ${ID}#.fastq $inBam >> $logFile 2>&1\n\n'
-			
-			r'readGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED' + '\n\n'
-			
-			'### Checks for PE output... will align SE vs PE accordingly\n'
-			'alignPrefix=${ID}.bwa.tmp\n'
-			'if [ $(find . -name *${ID}_1.fastq) ]; then\n\n'
-				
-				'\t# Aln PE -M by default for Picard compatibility\n'
-				'\t' + run.exe['bwa'] + ' mem ' + parameters + ' -M -t ' + str(run.maxCores) + ' -R "$readGroup" ' + run.ref['ref'] + 
-					' ${ID}_1.fastq ${ID}_2.fastq 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
-					+ run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(run.maxMem / 2) + 'M --tmpcompression 6 '
-					'--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-			
-			'else\n'
-				'\t# Aln SE -M by default for Picard compatibility\n'
-				'\t' + run.exe['bwa'] + ' mem ' + parameters + ' -M -t ' + str(run.maxCores) + ' -R "$readGroup" ' + run.ref['ref'] + 
-					' ${ID}.fastq 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
-					+ run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(run.maxMem / 2) + 'M --tmpcompression 6 '
-					'--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-			
-			'fi\n\n'
-			
-			+ getEofCheckStr('outBam'))
-	
-	filename = appName + '.sh'
-	# call fxn to print the wrapper created above
-	printFile(run.wrapperDir, filename, Str, True)
-"""
-
-
-def printBwaMem(run, appName, parameters):
-    """ Need to think about how to handle maxcores with bwa
-    Perhaps could use all of them... need to try that now but test other
-    options later... Using bamUtil bam2fastq now...
-
-    Currently not removing the tmp dir used by novosort... remember this
-    still needs to be flexible to novosort vs samtools"""
-
-    # String literal to fix backslash issues
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'outBam=$2\n'
-           'RGname=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n\n'
-
-           'export PATH=' + run.PATH + '\n'
-                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
-
-                                                                                         'tmpDir=$(pwd)/${ID}/NovoSortBwa\n'
-                                                                                         'mkdir -p -v $tmpDir\n\n'
-
-           + getHostnameString() +
-
-           '# Get read group string... could make this cleaner\n'
-           'readGroup=$(' + run.exe[
-               'samtools'] + ' view -H $inBam 2>> $logFile | grep "@RG"| grep $RGname | sed "s:\t:\\t:g" | sed "s:\t:\\t:g")\n\n'
-
-                             'echo Read group: $RGname >> $logFile\n\n'
-
-                             '# Will default to PE... is wc -l > 0 then a PE run will be initated\n'
-                             'numPairedReads=$(' + run.exe[
-               'samtools'] + ' view -b -r $RGname -f 0x1 $inBam | head -25000 | wc -l)\n\n'
-
-                             'if [ "$numPairedReads" -gt "0" ]; then\n'
-           + ('\t' * 1) + 'echo File $inBam appears to contain PAIRED END fastq data... >> $logFile\n'
-           + ('\t' * 1) + 'echo Extracting and aligning PAIRED END data... >> $logFile\n\n'
-
-           + ('\t' * 1) + 'fastq1=${ID}_1.fastq\n'
-           + ('\t' * 1) + 'fastq2=${ID}_2.fastq\n\n'
-
-           + ('\t' * 1) + '# Paired end data... rm existing and make named pipes\n'
-           + ('\t' * 1) + 'rm -f $fastq1\n'
-           + ('\t' * 1) + 'rm -f $fastq2\n\n'
-           + ('\t' * 1) + 'mkfifo $fastq1\n'
-           + ('\t' * 1) + 'mkfifo $fastq2\n\n'
-
-           + ('\t' * 1) + '# Unpaired fastq will be discarded into /dev/null\n'
-           + ('\t' * 1) + run.exe['samtools'] + ' view -b -r $RGname $inBam 2>> $logFile | '
-           + run.exe['bamutil'] + ' bam2FastQ --in -.bam --noeof --firstOut $fastq1 --secondOut '
-                                  '$fastq2 --unpairedOut /dev/null 2>> $logFile &\n\n'
-
-           + ('\t' * 1) + '# Aln PE -M by default for Picard compatibility\n'
-           + ('\t' * 1) + run.exe['bwa'] + ' mem ' + parameters + ' -M -t ' + str(run.maxCores) + ' -R "$readGroup" ' +
-           run.ref['ref'] +
-           ' $fastq1 $fastq2 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
-           + run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(
-        run.maxMem / 2) + 'M --tmpcompression 6 '
-                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-
-           + ('\t' * 1) + '# remove fifo variables/objects\n'
-           + ('\t' * 1) + 'rm $fastq1\n'
-           + ('\t' * 1) + 'rm $fastq2\n\n'
-
-                          'else\n'
-           + ('\t' * 1) + '#Will be single end\n'
-           + ('\t' * 1) + 'echo File $inBam appears to contain SINGLE END fastq data... >> $logFile\n'
-           + ('\t' * 1) + 'echo Extracting and aligning SINGLE END data... >> $logFile\n\n'
-
-           + ('\t' * 1) + 'fastq=${ID}.fastq\n\n'
-
-           + ('\t' * 1) + '# Single end data... make named pipes\n'
-           + ('\t' * 1) + 'rm -f $fastq\n\n'
-           + ('\t' * 1) + 'mkfifo $fastq\n\n'
-
-           + ('\t' * 1) + '# end 1 and end 2 fastq will be discarded into /dev/null\n'
-           + ('\t' * 1) + run.exe['samtools'] + ' view -b -r $RGname $inBam 2>> $logFile | '
-           + run.exe['bamutil'] + ' bam2FastQ --in -.bam --noeof --firstOut /dev/null --secondOut '
-                                  '/dev/null --unpairedOut $fastq 2>> $logFile &\n\n'
-
-           + ('\t' * 1) + run.exe['bwa'] + ' mem ' + parameters + ' -M -t ' + str(run.maxCores) + ' -R "$readGroup" ' +
-           run.ref['ref'] +
-           ' $fastq 2>> $logFile | ' + run.exe['samtools'] + ' view -b - 2>> $logFile | '
-           + run.exe['novosort'] + ' --threads ' + str(run.maxCores / 4) + ' --ram ' + str(
-        run.maxMem / 2) + 'M --tmpcompression 6 '
-                          '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
-
-           + ('\t' * 1) + '# remove fifo variables/objects\n'
-           + ('\t' * 1) + 'rm $fastq\n\n'
-
-                          'fi\n\n'
-
-           + getEofCheckStr('outBam'))
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printDellyPaired(run, appName, parameters):
-    """ Could multi-thread this with the statically linked parallel
-    version of Delly. It parallelizes by samples so num threads = 2
-
-    Parallel var set... just need the parallel statically linked binary"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inTumor=$1\n'
-           'inTumorIndex=$2\n'
-           'inNormal=$3\n'
-           'inNormalIndex=$4\n'
-           'outVcf=$5\n'
-           'logFile=$6\n'
-           'ID=$7\n'
-           'dir=$8\n'
-           'analysisType=$9\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-                                       'export OMP_NUM_THREADS=2\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
-
-           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# Initialize delly output file... if no struct vars Delly does\n'
-           '# not appear to produce a vcf\n'
-           'echo no_mapped_reads > $outVcf\n\n'
-
-           '# Call with delly\n'
-           + run.exe['delly'] + ' -g ' + run.ref['ref'] + ' -o $outVcf ' + parameters +
-           ' -t $analysisType $inTumor $inNormal >> $logFile 2>&1\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printPlatypusPaired(run, appName, parameters):
-    """ Fill this in
-
-    LD_LIBRARY_PATH necessary for Beagle"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inTumor=$1\n'
-           'inTumorIndex=$2\n'
-           'inNormal=$3\n'
-           'inNormalIndex=$4\n'
-           'outVcf=$5\n'
-           'logFile=$6\n'
-           'ID=$7\n'
-           'dir=$8\n'
-           'coords=$9\n\n'
-
-           'export PATH=' + run.PATH + '\n'
-                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
-
-           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# Genotype\n'
-           + run.exe['python'] + ' ' + run.exe[
-               'platypus'] + ' callVariants --nCPU ' + run.packingCores + ' --output $outVcf '
-                                                                          '--refFile ' + run.ref[
-               'ref'] + ' --regions $coords ' + parameters + ' --bamFiles $inTumor $inNormal >> $logFile 2>&1\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printMutect(run, appName, parameters):
-    """ Need to be sure this is the proper way to specify coords in mutect.
-    Determine if multi-threading can work for mutect and if the memory set here
-    is appropriate"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inTumor=$1\n'
-           'inTumorIndex=$2\n'
-           'inNormal=$3\n'
-           'inNormalIndex=$4\n'
-           'outVcf=$5\n'
-           'logFile=$6\n'
-           'ID=$7\n'
-           'dir=$8\n'
-           'coords=$9\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
-
-           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# Genotype\n'
-           + run.exe['java'] + ' ' + run.gcFlag + ' ' + run.javaMem + ' -jar ' + run.exe['mutect'] +
-           ' --analysis_type MuTect --reference_sequence ' + run.ref['ref'] +
-           ' --cosmic ' + run.ref['cosmic'] + ' --dbsnp ' + run.ref['dbSnpVcf'] +
-           ' -L $coords --input_file:normal $inNormal --input_file:tumor $inTumor'
-           ' --vcf $outVcf --coverage_file ${ID}.coverage.wig.txt >> $logFile 2>&1\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printScalpelPaired(run, appName, parameters):
-    """Currently written to only return variants that are determined to
-    be somatic by scalpel (i.e. will not give germline variants"""
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inTumor=$1\n'
-           'inTumorIndex=$2\n'
-           'inNormal=$3\n'
-           'inNormalIndex=$4\n'
-           'outVcf=$5\n'
-           'logFile=$6\n'
-           'ID=$7\n'
-           'dir=$8\n'
-           'coords=$9\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
-
-           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# Genotype\n'
-           + run.exe['scalpel'] + ' --somatic --normal $inNormal --tumor '
-                                  '$inTumor --bed $coords --ref ' + run.ref['ref'] + ' --numprocs ' + str(
-        int(run.packingCores) * 2) +
-           ' ' + parameters + ' > $outVcf 2>> $logFile\n\n'
-
-                              '# Move output to proper location\n'
-                              'mv ./outdir/main/somatic.*.indel.vcf $outVcf\n\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printMpileupPaired(run, appName, parameters):
-    ''' Uses the multi-allelic caller by default '''
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inTumor=$1\n'
-           'inTumorIndex=$2\n'
-           'inNormal=$3\n'
-           'inNormalIndex=$4\n'
-           'outVcf=$5\n'
-           'logFile=$6\n'
-           'ID=$7\n'
-           'dir=$8\n'
-           'coords=$9\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inTumor', ['outVcf'])
-
-           + getNoMappedReadsStrCheck('inNormal', ['outVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# Genotype\n'
-           + run.exe['samtools'] + ' mpileup -r $coords -u ' + parameters + ' -f '
-           + run.ref['ref'] + ' $inTumorIn $inNormal | ' + run.exe['bcftools'] +
-           ' call -m -O v 2>> $logFile > $outVcf')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printVarscan(run, appName, parameters):
-    ''' Will automatically call snps and indels. They will be cat into the
-    same file. in addtion, mpileup with default params is used to generate
-    the pileup files '''
-
-    if run.args['worker_tmp']:
-        tmp = '/tmp/'
-    else:
-        tmp = ''
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inTumor=$1\n'
-           'inTumorIndex=$2\n'
-           'inNormal=$3\n'
-           'inNormalIndex=$4\n'
-           'snvVcf=$5\n'
-           'indelVcf=$6\n'
-           'logFile=$7\n'
-           'ID=$8\n'
-           'dir=$9\n'
-           'coords=${10}\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inTumor', ['snvVcf', 'indelVcf'])
-
-           + getNoMappedReadsStrCheck('inNormal', ['snvVcf', 'indelVcf'])
-
-           + getSkipUnknownChrString() +
-
-           '# create names for each pileup\n'
-           'tPileup=' + tmp + '${ID}.tumor.pileup\n'
-                              'nPileup=' + tmp + '${ID}.normal.pileup\n\n'
-
-                                                 '# Commands will be executed simultaneously\n'
-           + run.exe['samtools'] + ' mpileup -r $coords -f ' + run.ref['ref'] + ' $inTumor 2>> $logFile > $tPileup &\n'
-
-           + run.exe['samtools'] + ' mpileup -r $coords -f ' + run.ref['ref'] + ' $inNormal 2>> $logFile > $nPileup\n\n'
-
-                                                                                '# Check if either pileup is empty\n'
-                                                                                'if [ -s $tPileup ]\n'
-                                                                                'then\n'
-                                                                                '\techo $tPileup is NOT of zero size >> $logFile\n'
-                                                                                'else\n'
-                                                                                '\techo $tPileup is of zero size...exiting >> $logFile\n'
-                                                                                '\techo no_mapped_reads >> $snvVcf\n'
-                                                                                '\techo no_mapped_reads >> $indelVcf\n'
-                                                                                '\texit 0\n'
-                                                                                'fi\n\n'
-
-                                                                                'if [ -s $nPileup ]\n'
-                                                                                'then\n'
-                                                                                '\techo $nPileup is NOT of zero size >> $logFile\n'
-                                                                                'else\n'
-                                                                                '\techo $nPileup is of zero size...exiting >> $logFile\n'
-                                                                                '\techo no_mapped_reads >> $snvVcf\n'
-                                                                                '\techo no_mapped_reads >> $indelVcf\n'
-                                                                                '\texit 0\n'
-                                                                                'fi\n\n'
-
-                                                                                '# Genotype - outfile will be local\n'
-           + run.exe['java'] + ' -jar ' + run.exe['varscan'] + ' somatic ' + parameters +
-           ' $nPileup $tPileup $ID 2>> $logFile\n\n'
-
-           '# Move to the proper vcf files\n'
-           'cp ${ID}.snp $snvVcf 2>> $logFile\n'
-           'cp ${ID}.indel $indelVcf 2>> $logFile\n'
-
-           '# rm pileup files\n'
-           'rm -f $tPileup\n'
-           'rm -f $nPileup\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printSamtoolsExtractRg(run, appName, parameters):
-    """ Fill this in """
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           '## Will get RG ID from outfile\n'
-           'outBam=$2\n'
-           'readGroupStr=$3\n'
-           'logFile=$4\n'
-           'ID=$5\n'
-           'dir=$6\n'
-           'RGname=$7\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString() +
-
-           'RGID=$(basename $outBam | rev | cut -f 2 -d "." | rev)\n\n'
-
-           'echo RGname: $RGname >> $logFile\n\n'
-
-           '# get RG header info...\n'
-           'echo $(' + run.exe['samtools'] + ' view -H $inBam 2>> $logFile | grep ^@RG | grep $RGname | '
-                                             'sed "s:\\t:\\t:g" | sed "s:\\t:\\t:g" | sed "s: :_:g") > $readGroupStr 2>> $logFile\n'
-
-                                             '# extract read group then add proper header\n'
-           + run.exe['samtools'] + ' view -b -r $RGname $inBam > $outBam 2>> $logFile\n\n'
-
-                                   '#Check EOF\n'
-           + getEofCheckStr('outBam'))
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printBamutilPerBaseCoverage(run, appName, parameters):
-    """ Make this more flexible later... for now just have the cov stats
-    being written to temp, then gzip back """
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inBam=$1\n'
-           'perBaseCov=$2\n'
-           'logFile=$3\n'
-           'ID=$4\n'
-           'dir=$5\n'
-
-
-           'export PATH=' + run.PATH + '\n\n'
-                                       'export LD_LIBRARY_PATH=' + run.LD_LIBRARY_PATH + '\n\n'
-
-           + getHostnameString() +
-
-           'tmpPerBaseCov=${ID}.perBaseCov.tmp\n\n'
-
-           '# remove and then create named pipe\n'
-           'rm -f $tmpPerBaseCov\n'
-           'mkfifo $tmpPerBaseCov\n\n'
-
-           '# Generate per base coverage and stream into cut\n'
-           + run.exe['bamutil'] + ' stats --cBaseQC $tmpPerBaseCov --regionsList ' + run.ref[
-               'regions'] + ' --in $inBam 2>> $logFile &\n\n'
-
-                            'cut -f 1-3,11,16-17 $tmpPerBaseCov 2>> $logFile | gzip > $perBaseCov 2>> $logFile\n\n'
-
-                            'rm $tmpPerBaseCov\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
-def printStrelka(run, appName, parameters):
-    """ need to print and pass strelka config file...
-
-    Might need to run on a per chrom basis (not region)"""
-
-    strelkaConfigPath = run.outDir + '/strelkaConfig.ini'
-    printStrelkaConfig(strelkaConfigPath, parameters)
-
-    Str = ('#!/bin/bash\n\n'
-
-           'set -e\n\n'
-
-           'inTumor=$1\n'
-           'inTumorIndex=$2\n'
-           'inNormal=$3\n'
-           'inNormalIndex=$4\n'
-           'snvVcf=$5\n'
-           'indelVcf=$6\n'
-           'config=$7\n'
-           'logFile=$8\n'
-           'ID=$9\n'
-           'dir=${10}\n\n'
-
-           'export PATH=' + run.PATH + '\n\n'
-
-           + getHostnameString()
-
-           + getNoMappedReadsStrCheck('inTumor', ['snvVcf', 'indelVcf'])
-
-           + getNoMappedReadsStrCheck('inNormal', ['snvVcf', 'indelVcf'])
-
-           + getSkipUnknownChrString() +
-
-           'outDir=./${ID}_strelkaAnalysis\n'
-           'rm -rf $outDir\n\n'
-
-           '#--output-dir=$outDir\n'
-
-           'echo outDir: $outDir >> $logFile\n'
-           'echo WORK: $(pwd) >> $logFile\n'
-           'echo config: $config >> $logFile\n\n'
-
-           '# Using default (./strelkaAnalysis)  output dir\n' +
-           run.exe['strelka'] + ' --normal=$inNormal --tumor=$inTumor --ref=' + run.ref['ref'] +
-           ' --config=$config --output-dir=$outDir 2>> $logFile\n\n'
-
-           'echo About to run Strelka... >> $logFile\n\n'
-
-           'cd $outDir\n'
-           'make -j ' + str(int(run.packingCores) * 2) + ' 2>> $logFile\n\n'
-
-                                                         '# copy the results to expected output location\n'
-                                                         'cp results/passed.somatic.snvs.vcf $snvVcf 2>> $logFile\n'
-                                                         'cp results/passed.somatic.indels.vcf $indelVcf 2>> $logFile\n')
-
-    filename = appName + '.sh'
-    # call fxn to print the wrapper created above
-    printFile(run.wrapperDir, filename, Str, True)
-
-
 ################################
 # Print helper functions
 ################################
@@ -3481,54 +1907,13 @@ def write_strelka_config(config_path, parameters):
 
         # Write out key value pairs
         extra_args = list()
-        for key, value in parameters.items():
+        for key, value in six.iteritems(parameters):
             if value:
                 strelka_config.write('{key} = {value}\n'.format(key=key, value=value))
             else:
                 extra_args.append(key)
 
         # Write out extra arguments (keys without values)
-        strelka_config.write('extraStrelkaArguments = {extra_args}'.format(
+        strelka_config.write('extraStrelkaArguments = {extra_args}\n'.format(
             extra_args=' '.join(extra_args)
         ))
-
-
-def printFile(directory, filename, contents, needsExe):
-    """ Takes a directory, filename, and string of contents (wrapper or config).
-    Will print wrapper to directory/filename and set it to executable if
-    required"""
-
-    if directory[-1] != '/':
-        directory = directory + '/'
-
-    filepath = directory + filename
-    FH = open(filepath, "w")
-    print >> FH, contents
-
-    if needsExe:
-        # Change the generated file to be executable to user, group, and world
-        fileStat = os.stat(filepath)
-        os.chmod(filepath, fileStat.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-
-def printStrelkaConfig(strelkaConfigPath, parameters):
-    """fff"""
-
-    FH = open(strelkaConfigPath, 'w')
-
-    otherParamStr = 'extraStrelkaArguments = '
-    print >> FH, '[user]'
-
-    for parameter in parameters:
-        parameterVal = parameters[parameter]
-
-        if parameterVal == '':
-            otherParamStr = otherParamStr + parameter + ' '
-
-        else:
-            print >> FH, parameter + ' = ' + parameterVal + '\n'
-
-    print >> FH, otherParamStr
-
-    FH.close()
-    return

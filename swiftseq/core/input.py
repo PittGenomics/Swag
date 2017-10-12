@@ -1,11 +1,16 @@
 """
 Written by Jason Pitt
 Revised by Dominic Fitzgerald on 30 May 2017
+
+swiftseq run [args]
+The entry point for starting a new SwiftSeq run.
 """
 import os
 import warnings
 from collections import defaultdict
 from itertools import product
+
+import six
 
 from swiftseq.core import SwiftSeqStrings
 from swiftseq.core.readgroups import create_readgroup_files
@@ -19,6 +24,7 @@ TUMOR_NORMAL_PAIRS = 101
 
 PATIENT_NAME = -1
 BEFORE_EXTENSION = 0
+EXTENSION = 1
 
 """ First just write this so it can find the appropriate files and make
 the proper directories. Later, add sanity checks, ability to handle .RG
@@ -67,8 +73,13 @@ def create_analysis_dir(inputdata_type, inputdata_filepaths, inputdata_dir_root,
             verified_filepaths.append(data_filepath)
     elif inputdata_type == Workflow.GERMLINE:
         for data_filepath in inputdata_filepaths:
-            parent_dir = os.path.dirname(data_filepath)
-            if len(os.listdir(parent_dir)) > 1:
+            parent_dir = os.path.join(inputdata_dir_root, os.path.dirname(data_filepath))
+            num_bam_files = len(
+                [f for f in os.listdir(parent_dir)
+                 if os.path.splitext(f)[EXTENSION] == '.bam']
+            )
+
+            if num_bam_files > 1:
                 warnings.warn('Warning: {} does not adhere to required directory structure (multiple '
                               'seq files in the same directory). Will be ignored'.format(data_filepath))
                 continue
@@ -146,7 +157,7 @@ def create_germline_samples_file(germline_samples_filepath, inputdata_symlinks):
         germline_samples.write('ID dir\n')
 
         # Write out entry for each patient path
-        for inputdata_dir, inputdata_file in inputdata_symlinks_dir_file_map.items():
+        for inputdata_dir, inputdata_file in six.iteritems(inputdata_symlinks_dir_file_map):
             # TODO Remove trailing slash after debugging
             germline_samples.write('{id} {dir}/\n'.format(
                 id=os.path.splitext(inputdata_file)[ROOT],
@@ -224,8 +235,8 @@ def create_tissue_samples_files(tn_inputdata_map):
                                   to the inputdata filename
     """
     # Look at the both tissues for each patient id
-    for patient_id_relpath, tissues in tn_inputdata_map.items():
-        for tissue, samples in tissues.items():
+    for patient_id_relpath, tissues in six.iteritems(tn_inputdata_map):
+        for tissue, samples in six.iteritems(tissues):
             # Get relative path up to and including tissue type ('tumor' or 'normal')
             tissue_relpath = os.path.join(patient_id_relpath, tissue)
 
@@ -256,7 +267,7 @@ def create_paired_output_dirs(tn_inputdata_map):
     :param tn_inputdata_map: dict Mapping of important parts of inputdata symlink paths
                                   to the inputdata filename
     """
-    for patient_id_relpath, patient in tn_inputdata_map.items():
+    for patient_id_relpath, patient in six.iteritems(tn_inputdata_map):
         # Find all tumor and normal sample directories
         tumor_sample_dirs = [t for t in patient['tumor']]
         normal_sample_dirs = [n for n in patient['normal']]
@@ -341,7 +352,6 @@ def process_samples(inputdata_type, inputdata_filepaths, data_root, analysis_roo
         # Record the number of individuals analyzed
         n_individuals_analyzed = len(tn_inputdata_map)
     elif inputdata_type == Workflow.GERMLINE:
-        # TODO Remove extra slash
         create_germline_samples_file(
             germline_samples_filepath=os.path.join(analysis_root, SwiftSeqStrings.patient_out_filename),
             inputdata_symlinks=inputdata_symlinks

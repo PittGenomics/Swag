@@ -1,6 +1,8 @@
 import os
 from collections import defaultdict
 
+import six
+
 from swiftseq.core import SwiftSeqApps, SwiftSeqStrings
 from swiftseq.swift.config.generate import SwiftConfigProp, SwiftConfigBlock
 
@@ -16,7 +18,7 @@ def create_swift_config(**kwargs):
     :return: str The path to the Swift config file
     """
     # configHandle
-    with open(SwiftSeqStrings.swift_conf_filename) as swift_conf:
+    with open(SwiftSeqStrings.swift_conf_filename, 'w') as swift_conf:
         apps_by_site = partition_apps_by_site(SwiftSeqApps.all())
         sites = apps_by_site.keys()
 
@@ -33,7 +35,7 @@ def create_swift_config(**kwargs):
                 SwiftConfigProp('initialParallelTasks', 999),
 
                 get_execution_block(host_number, site, **kwargs),
-                *get_app_blocks(apps_by_site, kwargs.get('wrapper_dir'), kwargs.get('tmp_dir'))
+                *get_app_blocks(apps_by_site[site], kwargs.get('wrapper_dir'), kwargs.get('tmp_dir'))
             )
 
             swift_conf.write(str(site_block) + '\n')
@@ -70,10 +72,10 @@ def get_app_blocks(apps, wrapper_dir, tmp_dir):
         SwiftConfigBlock(
             'app.{app_name}'.format(app_name=app_name),
             SwiftConfigProp('executable', app_wrapper_path.format(app_name=app_name)),
-            SwiftConfigProp('maxWallTime', app_config['walltime']),
+            SwiftConfigProp('maxWallTime', app_config.get('walltime', SwiftSeqStrings.app_walltime_default)),
             SwiftConfigProp('env.TMPDIR', tmp_dir, override='{key}="{val}"')
         )
-        for app_name, app_config in apps.items()
+        for app_name, app_config in six.iteritems(apps)
     ]
 
 
@@ -121,28 +123,32 @@ def get_options_block(site, **kwargs):
             SwiftConfigProp('nodeGranularity', 1),
             SwiftConfigProp('jobQueue', kwargs.get('queue')),
             SwiftConfigProp('maxNodesPerJob', 1),
-            SwiftConfigProp('maxJobs', kwargs.get('queue')),
+            SwiftConfigProp('maxJobs', kwargs.get('num_nodes')),
             SwiftConfigProp('highOverallocation', 100),
             SwiftConfigProp('maxJobTime', str(kwargs.get('job_time'))),
             SwiftConfigProp('lowOverallocation', 100),
             SwiftConfigProp('tasksPerNode', tasks_per_node),
             SwiftConfigProp('workerLoggingLevel', 'DEBUG'),
-            SwiftConfigProp('workerLoggingDirectory', os.path.join(kwargs.get('work_dir'), 'workerLogging'))
-        ] + [
+            SwiftConfigProp('workerLoggingDirectory',
+                            os.path.join(kwargs.get('work_dir'), SwiftSeqStrings.worker_logging_dir))
+        ] + ([
             # If a project ID exists, return a property, else nothing
             SwiftConfigProp('jobProject', kwargs.get('project_id'))
-        ] if kwargs.get('project_id') is not None else [] + [
+        ] if kwargs.get('project_id') is not None else []) + [
             # The jobOptions block
             SwiftConfigBlock(
                 'jobOptions',
-                *[
-                    SwiftConfigProp(key.strip(), value.strip(), override=SwiftConfigProp.NO_QUOTE)
-                    for option in kwargs.get('job_options').split(';')
-                    for key, value in option.strip().split(':')
-                ]
+                *parse_job_options(kwargs.get('job_options'))
             )
         ])
     )
+
+def parse_job_options(job_options):
+    options = list()
+    for job_options in job_options.strip().split(';'):
+        key, value = job_options.strip().split(':')
+        options.append(SwiftConfigProp(key.strip(), value.strip(), override=SwiftConfigProp.NO_QUOTE))
+    return options
 
 
 def partition_apps_by_site(apps):

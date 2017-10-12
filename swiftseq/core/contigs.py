@@ -13,6 +13,7 @@ from swiftseq.util.path import mkdirs
 TAG = 0
 CONTIG_FIELD = 1
 END_COORD = 2
+PREFIX = 0
 
 
 def create_contigs_files(picard_ref_seq_dict, contig_interval_size,
@@ -121,7 +122,6 @@ def segment_genomic_regions(picard_ref_dict, interval_size, swiftseq_reference_d
         contigs_unmapped.write('no_mapped_reads\n')
 
 
-# TODO Obviously this whole function needs to be cleaned up
 def mk_contigs_file(swiftseq_inputdata_symlink, defined_contigs):
     """ Will create an expected contig file for each symlinked bam.
     The resulting file will be named ContigFiles.txt and will reside
@@ -133,16 +133,11 @@ def mk_contigs_file(swiftseq_inputdata_symlink, defined_contigs):
     
     Now this function is being used again since bamtools needs it"""
 
-    absOutDir = os.getcwd() + '/'
+    bam_dir, bam_prefix = os.path.split(swiftseq_inputdata_symlink)
+    bam_prefix = os.path.splitext(bam_prefix)[PREFIX]
+    out_dir = os.path.join(os.getcwd(), bam_dir)
 
-    # Assumes a bam as the input
-    bamPrefix = swiftseq_inputdata_symlink[:-4].split('/')[-1]  # strips off '.bam'
-    bamDir = '/'.join(swiftseq_inputdata_symlink.split('/')[0:-1]) + '/'
-    # TODO Add this to SwiftSeqStrings
-    outFile = open(absOutDir + bamDir + 'sampleContigs.txt', 'w')
-    for contig in defined_contigs:
-        contigBam = '%s%s.contig.%s.bam' % (absOutDir, bamDir + bamPrefix, contig)
-        print >> outFile, contigBam
-    # unmapped because this is what bamtools uses
-    print >> outFile, '%s%s.contig.%s.bam' % (absOutDir, bamDir + bamPrefix, 'unampped')
-    outFile.close()
+    with open(os.path.join(out_dir, SwiftSeqStrings.sample_contigs_filename), 'w') as contigs_file:
+        for contig in list(defined_contigs) + ['unmapped']:
+            contig_bam = '{}.contig.{}.bam'.format(bam_prefix, contig)
+            contigs_file.write(os.path.join(out_dir, contig_bam) + '\n')

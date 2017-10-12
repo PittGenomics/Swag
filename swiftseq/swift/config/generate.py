@@ -1,3 +1,6 @@
+import six
+
+
 class SwiftConfigProp(object):
     NO_QUOTE = '{key}: {val}'
 
@@ -18,7 +21,7 @@ class SwiftConfigProp(object):
         return '{key}{sep}{val}'.format(
             key=self.key,
             sep=self.sep,
-            val='"{}"'.format(self.value) if isinstance(self.value, str) else self.value
+            val='"{}"'.format(self.value) if isinstance(self.value, six.string_types) else self.value
         )
 
     def __unicode__(self):

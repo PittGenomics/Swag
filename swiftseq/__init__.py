@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+import traceback
 
 from importlib import import_module
 from pkgutil import iter_modules
@@ -10,6 +11,7 @@ from swiftseq.core import commands
 
 def execute_from_command_line():
     parser = argparse.ArgumentParser(prog='swiftseq')
+    parser.add_argument('--debug', action='store_true')
     subparsers = parser.add_subparsers()
 
     commands_path = os.path.dirname(commands.__file__)
@@ -33,3 +35,7 @@ def execute_from_command_line():
         args.func(vars(args))
     except Exception as e:
         sys.stderr.write('An error occured:\n{}\n'.format(e))
+        if args.debug:
+            sys.stderr.write('\nTraceback:\n')
+            _, _, tb = sys.exc_info()
+            traceback.print_tb(tb)

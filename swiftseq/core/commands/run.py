@@ -1,4 +1,14 @@
 #! /usr/bin/env python
+
+"""
+Written by Jason Pitt
+    Github: JasonJPitt
+Modified by Dominic Fitzgerald on 24 August 2017
+    Github: djf604
+
+swiftseq run [args]
+The entry point for starting a new SwiftSeq run.
+"""
 from __future__ import print_function
 
 import os
@@ -159,8 +169,9 @@ def main(args=None):
     exe_config = swiftseq.util.parse_config(args['exe_config'])
     ref_config = swiftseq.util.parse_config(args['ref_config'])
     # Makes a new dir in the current directory called 'wrappers'
-    wrapper_dir = mkdirs(os.path.join(work_dir, SwiftSeqStrings.worker_logging_dir))
+    wrapper_dir = mkdirs(os.path.join(work_dir, SwiftSeqStrings.wrapper_dir))
     out_dir = 'analysis'  # TODO Allow user to change this
+    mkdirs(os.path.join(work_dir, out_dir))
 
     # Calculate some option values
     packing_cores = str(int(args['cores_per_node'] / args['tasks_per_node']))

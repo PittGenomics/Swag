@@ -3,10 +3,7 @@ The modules and classes in swiftseq.core have to do with the core SwiftSeq funct
 and manipulating user input and passing necessary information to the various functions that output swift code, then
 running the actual SwiftSeq run.
 """
-
 from copy import copy
-
-from swiftseq.swift.wrappers import *
 
 
 class SwiftSeqStrings(object):
@@ -21,6 +18,7 @@ class SwiftSeqStrings(object):
                 )
 
     app_pool_default = 'primary'
+    app_walltime_default = '24:00:00'
 
     # For swiftseq.core.input
     patient_out_filename = 'individuals.txt'
@@ -33,6 +31,7 @@ class SwiftSeqStrings(object):
     # For swiftseq.core.contigs
     contigs_filename = 'contigs.txt'
     contig_unmapped_filename = 'contig_segments_unmapped.txt'
+    sample_contigs_filename = 'sampleContigs.txt'
 
     # Run directory structure setup
     analysis_reference_dir = 'Reference'
@@ -40,7 +39,7 @@ class SwiftSeqStrings(object):
     swift_conf_filename = 'Swift.conf'
     swift_script_filename = 'SwiftSeq.swift'
     paired_analysis_dir = 'pairedAnalyses'
-    worker_logging_dir = 'workingLogging'
+    worker_logging_dir = 'workerLogging'
     wrapper_dir = 'wrapper'
 
     # For swiftseq.swift.generate
@@ -57,32 +56,86 @@ class SwiftSeqStrings(object):
     setup_url = 'TODO'
 
 
+class SwiftSeqWorkflowValidation(object):
+    @staticmethod
+    def get_workflow_schema():
+        steps_schema = {}
+        for step in SwiftSeqSupported.types('program'):
+            steps_schema[step] = {'type': 'dict', 'schema': dict()}
+            for program in SwiftSeqSupported.programs(step):
+                steps_schema[step]['schema'][program] = {'type': 'dict', 'schema': 'program-schema'}
+
+        # Contraints for specific workflow steps
+        # TODO Connect specific step names with SwiftSeqSupported so edits only happen in one place
+        steps_schema['aligner'].update({'minlength': 1, 'maxlength': 1})
+        steps_schema['duplicate_removal'].update({'minlength': 1, 'maxlength': 1})
+        steps_schema['gatk_post-processing'].update({'minlength': 2, 'maxlength': 2})
+
+        workflow_schema = {
+            'dataType': {
+                'type': 'string',
+                'allowed': list(SwiftSeqSupported.types('data')),
+                'required': True
+            },
+            'runType': {
+                'type': 'string',
+                'allowed': list(SwiftSeqSupported.types('run')),
+                'required': True
+            }
+        }
+        workflow_schema.update(steps_schema)
+
+        return workflow_schema
+
+    @staticmethod
+    def get_program_schema():
+        return {
+            'params': {
+                'type': 'dict',
+                'keyschema': {'type': 'string'},
+                'valueschema': {'type': 'string'}
+            },
+            'walltime': {
+                'type': 'string',
+                'regex': r'^\d+:\d{2}:\d{2}$',
+                'required': True
+            }
+        }
+
+
 class SwiftSeqSupported(object):
     _supported = {
         'programs': {
-            'gatk_post': {'GatkIndelRealignment', 'GatkBqsr'},
-            'aligners': {'BwaAln', 'BwaMem', 'Bowtie2'},
-            'genotypers': {
+            'gatk_post-processing': {'GatkIndelRealignment', 'GatkBqsr'},
+            'aligner': {'BwaAln', 'BwaMem', 'Bowtie2'},
+            'genotyper': {
                 'PlatypusPaired', 'PlatypusGerm', 'HaplotypeCaller', 'Mutect',
-                'MpileupPaired', 'UnifiedGenotyper', 'ScalpelPaired', 'ScalpelGerm'
+                'MpileupPaired', 'UnifiedGenotyper', 'ScalpelPaired', 'ScalpelGerm',
                 'Strelka', 'Varscan'
             },
-            'structural_variant_callers': {'DellyGerm', 'DellyPaired', 'LumpyGerm', 'LumpyPaired'},
-            'remove_duplicates': {'PicardMarkDuplicates'},
+            'structural_variant_caller': {'DellyGerm', 'DellyPaired', 'LumpyGerm', 'LumpyPaired'},
+            'duplicate_removal': {'PicardMarkDuplicates'},
             'bam_quality_control': {'SamtoolsFlagstat', 'BedtoolsGenomeCoverage', 'BamutilPerBaseCoverage'},
+            # This is here because java has a different way of taking command line arguments
             'java': {'PicardMarkDuplicates'}
         },
         'types': {
-            'run': {'Processing', 'Genotyping', 'Processing_and_Genotyping'},
-            'data': {'Germline', 'Tumor_Normal_Pair'},
+            'run': {'processing', 'genotyping', 'processing_and_genotyping'},
+            'data': {'germline', 'tumor_normal_pair'},
             'program': {
-                'Aligner', 'Genotyper', 'Structural_Variant_Caller',
-                'Gatk_Post-processing', 'Duplicate_Removal', 'Bam_Quality_Control'
+                'aligner', 'genotyper', 'structural_variant_caller',
+                'gatk_post-processing', 'duplicate_removal', 'bam_quality_control'
             }
+        },
+        'flags': {
+            'processing_and_genotyping': (True, True),
+            'processing': (True, False),
+            'genotyping': (False, True)
         },
         'params': {
             'program': {
-                'walltime', 'params'}
+                'walltime', 'params'
+            }
         }
     }
 
@@ -101,6 +154,13 @@ class SwiftSeqSupported(object):
         found, return an empty set
         """
         return SwiftSeqSupported._get_supported(grouping_name, entity='types')
+
+    @staticmethod
+    def flags():
+        """
+        Get the aligner and/or genotyper present flags depending on the run type
+        """
+        return SwiftSeqSupported._supported.get('flags')
 
     @staticmethod
     def params(grouping_name='program'):
@@ -134,91 +194,73 @@ class SwiftSeqApps(object):
     """
     _custom = {
         'PicardMarkDuplicates': {
-            'name': 'PicardMarkDuplicates', 'print': printPicardMarkDuplicates,
+            'name': 'PicardMarkDuplicates',
             'walltime': '15:00:00', 'pool': 'primary'
         },
         'GatkIndelRealignment': {
-            'name': 'GatkIndelRealnment', 'print': printGatkIndelRealnment,  # Misspelling here?
+            'name': 'GatkIndelRealnment',
             'walltime': '24:00:00', 'pool': 'primary'
         },
         'GatkBqsr': {
             'name': 'GatkBqsr',
-            'print': printGatkBqsr,
             'walltime': '24:00:00', 'pool': 'primary'},
         'DellyGerm': {
             'name': 'DellyGerm',
-            'print': printDellyGerm,
             'walltime': '18:00:00', 'pool': 'primary'},
         'DellyPaired': {
             'name': 'DellyPaired',
-            'print': printDellyPaired,
             'walltime': '18:00:00', 'pool': 'primary'},
         'SnpEff': {
             'name': 'SnpEff',
-            'print': printSnpEff,
             'walltime': '10:00:00', 'pool': 'primary'},
         'BwaAln': {
             'name': 'BwaAln',
-            'print': printBwaAln,
             'walltime': '47:00:00', 'pool': 'one'},
         'BwaMem': {
             'name': 'BwaMem',
-            'print': printBwaMem,
             'walltime': '47:00:00', 'pool': 'one'},
         'PlatypusGerm': {
             'name': 'PlatypusGerm',
-            'print': printPlatypusGerm,
             'walltime': '15:00:00',
                          'pool': 'primary'},
         'PlatypusPaired': {
             'name': 'PlatypusGerm',
-            'print': printPlatypusPaired,
             'walltime': '15:00:00',
                            'pool': 'primary'},
         'Mutect': {
             'name': 'Mutect',
-            'print': printMutect,
             'walltime': '20:00:00', 'pool': 'primary'},
         'MpileupPaired': {
             'name': 'MpileupPaired',
-            'print': printMpileupPaired,
             'walltime': '20:00:00',
                           'pool': 'primary'},
         'HaplotypeCaller': {
             'name': 'HaplotypeCaller',
-            'print': printHaplotypeCaller,
             'walltime': '15:00:00',
                             'pool': 'RAM'},
         'ScalpelGerm': {
             'name': 'ScalpelGerm',
-            'print': printScalpelGerm,
             'walltime': '20:00:00', 'pool': 'RAM'},
         'ScalpelPaired': {
             'name': 'ScalpelPaired',
-            'print': printScalpelPaired,
             'walltime': '20:00:00', 'pool': 'RAM'},
         'Varscan': {
             'name': 'Varscan',
-            'print': printVarscan,
             'walltime': '20:00:00', 'pool': 'primary'},
         'Strelka': {
             'name': 'Strelka',
-            'print': printStrelka,
             'walltime': '20:00:00', 'pool': 'RAM'},
         'SamtoolsFlagstat': {
             'name': 'SamtoolsFlagstat',
-            'print': printSamtoolsFlagstat,
             'exclusion': None,
 
                              'walltime': '06:00:00', 'pool': 'primary'},
         'BedtoolsGenomeCoverage': {
             'name': 'BedtoolsGenomeCoverage',
-            'print': printBedtoolsGenomeCoverage,
             'exclusion': None,
             'walltime': '08:00:00', 'pool': 'primary'},
         'BamutilPerBaseCoverage': {
             'name': 'BamutilPerBaseCoverage',
-            'print': printBamutilPerBaseCoverage,
             'exclusion': None,
             'walltime': '12:00:00', 'pool': 'RAM'},
         }
@@ -226,43 +268,36 @@ class SwiftSeqApps(object):
     _base = {
         'GatkBqsrGrpReduce': {
             'name': 'GatkBqsrGrpReduce',
-            'print': printGatkBqsrGrpReduce,
             'exclusion': None,
 
                               'walltime': '03:00:00', 'pool': 'primary'},
         'SamtoolsParseContig': {
             'name': 'SamtoolsParseContig',
-            'print': printSamtoolsParseContig,
             'exclusion': None,
 
                                 'walltime': '24:00:00', 'pool': 'IO'},
         'SamtoolsExtractRg': {
             'name': 'SamtoolsExtractRg',
-            'print': printSamtoolsExtractRg,
             'exclusion': None,
 
                               'walltime': '24:00:00', 'pool': 'IO'},
         'ConcatVcf': {
             'name': 'ConcatVcf',
-            'print': printConcatVcf,
             'exclusion': None,
             'walltime': '10:00:00',
                       'pool': 'primary'},
         'RgMergeSort': {
             'name': 'RgMergeSort',
-            'print': printRgMergeSort,
             'exclusion': None,
             'walltime': '24:00:00',
                         'pool': 'one'},
         'IndexBam': {
             'name': 'IndexBam',
-            'print': printIndexBam,
             'exclusion': None,
             'walltime': '08:00:00',
                      'pool': 'IO'},
         'ContigMergeSort': {
             'name': 'ContigMergeSort',
-            'print': printContigMergeSort,
             'exclusion': None,
 
                             'walltime': '24:00:00', 'pool': 'one'}
@@ -278,4 +313,6 @@ class SwiftSeqApps(object):
 
     @classmethod
     def all(cls):
-        return copy(cls._custom).update(cls._base)
+        _custom_copy = copy(cls._custom)
+        _custom_copy.update(cls._base)
+        return _custom_copy

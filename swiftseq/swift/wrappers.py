@@ -1153,8 +1153,8 @@ def compose_BwaAln(app_name, **kwargs):
             # exe_novosort=exe_config['novosort'],
             exe_sambamba=exe_config['sambamba'],
             ref_ref=ref_config['ref'],
-            max_cores_div_4=kwargs.get('max_cores') / 4,
-            max_mem_div_2=kwargs.get('max_mem') / 2,
+            max_cores_div_4=int(kwargs.get('max_cores') / 4),
+            max_mem_div_2=int(kwargs.get('max_mem') / 2),
             **kwargs
         ),
         executable=True
@@ -1412,8 +1412,8 @@ def compose_BwaMem(app_name, **kwargs):
             # exe_novosort=exe_config['novosort'],
             exe_sambamba=exe_config['sambamba'],
             ref_ref=ref_config['ref'],
-            max_cores_div_4=kwargs.get('max_cores') / 4,
-            max_mem_div_2=kwargs.get('max_mem') / 2,
+            max_cores_div_4=int(kwargs.get('max_cores') / 4),
+            max_mem_div_2=int(kwargs.get('max_mem') / 2),
             **kwargs
         ),
         executable=True

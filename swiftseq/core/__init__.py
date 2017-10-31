@@ -266,11 +266,11 @@ class SwiftSeqApps(object):
         }
 
     _base = {
-        'GatkBqsrGrpReduce': {
-            'name': 'GatkBqsrGrpReduce',
-            'exclusion': None,
-
-                              'walltime': '03:00:00', 'pool': 'primary'},
+        # 'GatkBqsrGrpReduce': {
+        #     'name': 'GatkBqsrGrpReduce',
+        #     'exclusion': None,
+        #
+        #                       'walltime': '03:00:00', 'pool': 'primary'},
         'SamtoolsParseContig': {
             'name': 'SamtoolsParseContig',
             'exclusion': None,

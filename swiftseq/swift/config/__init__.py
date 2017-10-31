@@ -134,13 +134,13 @@ def get_options_block(site, **kwargs):
         ] + ([
             # If a project ID exists, return a property, else nothing
             SwiftConfigProp('jobProject', kwargs.get('project_id'))
-        ] if kwargs.get('project_id') is not None else []) + [
+        ] if kwargs.get('project_id') is not None else []) + ([
             # The jobOptions block
             SwiftConfigBlock(
                 'jobOptions',
                 *parse_job_options(kwargs.get('job_options'))
             )
-        ])
+        ] if kwargs.get('job_options') else []))
     )
 
 def parse_job_options(job_options):

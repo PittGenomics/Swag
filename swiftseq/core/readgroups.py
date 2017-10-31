@@ -7,6 +7,7 @@ import re
 import warnings
 from subprocess import Popen, PIPE
 
+import six
 from swiftseq.core import SwiftSeqStrings
 
 FIRST_RESULT = 0
@@ -28,10 +29,11 @@ def make_readgroup_dict(bam, samtools_path):
         [samtools_path, 'view', '-H', bam, '|', 'grep', '\'@RG\''],
         stdout=PIPE
     ).communicate()
+    samtools_output = samtools_output.decode('utf-8')
 
     # Add every readgroup line to a list
     readgroup_strings = list()
-    for line in samtools_output.split('\n'):
+    for line in str(samtools_output).split('\n'):
         if line.startswith('@RG'):
             readgroup_strings.append(line.strip().replace(' ', '_'))
 
@@ -63,7 +65,7 @@ def create_readgroup_files(inputdata_symlinks, samtools_path):
         with open(readgroup_out_path, 'w') as rg_out, open(readgroup_id_out_path, 'w') as rgid_out:
             for readgroup in readGroupIds:
                 rg_filename_root, rg_filename_ext = os.path.splitext(file_)
-                rg_filename = '.'.join((rg_filename_root, readgroup, rg_filename_ext.strip('.')))
+                rg_filename = '.'.join((rg_filename_root, six.u(readgroup), rg_filename_ext.strip('.')))
                 rg_out.write(rg_filename + '\n')
                 rgid_out.write(readgroup + '\n')
 

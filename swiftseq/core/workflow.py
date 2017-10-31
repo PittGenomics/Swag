@@ -137,7 +137,7 @@ class Workflow(object):
         self.has_rm_dup = 'duplicate_removal' in self.workflow_config
         self.has_struct_vars = bool(self.struct_var_callers)
         self.has_alignment, self.has_genotyping = SwiftSeqSupported.flags()[self.run_type]
-        self.aligner, = list(workflow_config['aligner']) if self.has_alignment else None,
+        self.aligner = list(workflow_config['aligner'])[0] if self.has_alignment else None
 
         # All programs in json that need to be printed with params will
         # be in this var

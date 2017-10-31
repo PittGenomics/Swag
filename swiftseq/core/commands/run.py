@@ -64,6 +64,11 @@ def info():
 
 
 def populate_parser(parser):
+    """
+    Can we make the environment variables configurable from the command line?
+    :param parser:
+    :return:
+    """
     parser.add_argument('--data', required=True,
                         help='The data directory containing sequencing data to be run (Required).')
     parser.add_argument('--workflow', required=True,
@@ -112,7 +117,7 @@ def populate_parser(parser):
                         help='The number of times an app should be re-executed after a failure (Default = 2)')
     parser.add_argument('--project-id',
                         help='Project ID used to submit and run jobs through a scheduler (Default = None).')
-    parser.add_argument('--job-manager', choices=['pbs', 'slurm', 'sge'], default='pbs',
+    parser.add_argument('--job-manager', default='local:pbs',
                         help='Software used to submit and manage jobs [pbs, slurm, sge].')
     parser.add_argument('--job-options',
                         help='String that will be provided to jobOptions portion of the swift json '
@@ -153,7 +158,7 @@ def main(args=None):
     # Get bundles util scripts
     util_scripts = swiftseq.util.get_util_scripts()
 
-    # Output welcome to the user
+    # Output welcome to the userity_Co
     subprocess.call(util_scripts['util_graphic'], shell=True)
     swiftseq.util.message_to_screen('\nPreparing run...\n')
 

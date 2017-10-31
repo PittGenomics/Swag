@@ -34,7 +34,8 @@ def execute_from_command_line():
     try:
         args.func(vars(args))
     except Exception as e:
-        sys.stderr.write('An error occured:\n{}\n'.format(e))
+        # TODO More helpful error messages
+        sys.stderr.write('An error occured:\n{}\n'.format(repr(e)))
         if args.debug:
             sys.stderr.write('\nTraceback:\n')
             _, _, tb = sys.exc_info()

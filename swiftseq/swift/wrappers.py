@@ -1121,7 +1121,7 @@ def compose_BwaAln(app_name, **kwargs):
         #     '--ram {max_mem_div_2}M --tmpcompression 6 --tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
         '\t{exe_bwa} sampe -P -r "$readGroup" {ref_ref} ${{ID}}_1.sai ${{ID}}_2.sai ${{ID}}_1.fastq ${{ID}}_2.fastq '
             '2>> $logFile | {exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
-            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam - 2>> $logFile\n'
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam /dev/stdin 2>> $logFile\n'
         '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
         
         'else\n'
@@ -1134,7 +1134,7 @@ def compose_BwaAln(app_name, **kwargs):
         #     '--tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
         '\t{exe_bwa} samse -r $readGroup {ref_ref} ${{ID}}.sai ${{ID}}.fastq 2>> $logFile | {exe_samtools} view -b - '
             '2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} --memory-limit={max_mem_div_2}M '
-            '--tmpdir=$tmpDir --out=$outBam - 2>> $logFile\n'
+            '--tmpdir=$tmpDir --out=$outBam /dev/stdin 2>> $logFile\n'
         '{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
         
         'fi\n\n'
@@ -1364,7 +1364,7 @@ def compose_BwaMem(app_name, **kwargs):
         #     '--tmpcompression 6 --tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
         '\t{exe_bwa} mem {app_parameters} -M -t {max_cores} -R "$readGroup" {ref_ref} $fastq1 $fastq2 2>> $logFile | '
             '{exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
-            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam - 2>> $logFile\n'
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam /dev/stdin 2>> $logFile\n'
         '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
         
         '\t# remove fifo variables/objects\n'
@@ -1390,7 +1390,7 @@ def compose_BwaMem(app_name, **kwargs):
         #     '--tmpcompression 6 --tmpdir $tmpDir --output $outBam --index - 2>> $logFile\n\n'
         '\t{exe_bwa} mem {app_parameters} -M -t {max_cores} -R "$readGroup" {ref_ref} $fastq 2>> $logFile | '
             '{exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
-            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam - 2>> $logFile\n'
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam /dev/stdin 2>> $logFile\n'
         '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
         
         '\t# remove fifo variables/objects\n'

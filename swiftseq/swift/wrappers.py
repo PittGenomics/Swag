@@ -743,7 +743,7 @@ def compose_RgMergeSort(app_name, **kwargs):
         'absDirName=$(dirname $logFile)\n'
         
         '# Use Sambamba for sorting\n'
-        '{exe_sambamba} sort --nthreads={max_cores} --memory-limit={max_mem}M --tmpdir=$tmpDir $inBams 2>> '
+        '{exe_sambamba} sort --nthreads={max_cores} --memory-limit={max_mem}M --tmpdir=$tmpDir -o /dev/stdout $inBams 2>> '
             '$logFile | {exe_bamutil} splitChromosome --in -.bam --out ${{absDirName}}/${{ID}}.contig. --noef 2>> '
             '$logFile\n\n'
         # '{exe_novosort} --threads {max_cores} --ram {max_mem}M --tmpcompression 6 --tmpdir $tmpDir $inBams 2>> '

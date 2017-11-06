@@ -35,7 +35,12 @@ def create_swift_config(**kwargs):
                 SwiftConfigProp('initialParallelTasks', 999),
 
                 get_execution_block(host_number, site, **kwargs),
-                *get_app_blocks(apps_by_site[site], kwargs.get('wrapper_dir'), kwargs.get('tmp_dir'))
+                *get_app_blocks(
+                    apps=apps_by_site[site],
+                    wrapper_dir=kwargs.get('wrapper_dir'),
+                    tmp_dir=kwargs.get('tmp_dir'),
+                    apps_workflow=kwargs.get('workflow')
+                )
             )
 
             swift_conf.write(str(site_block) + '\n')
@@ -58,7 +63,7 @@ def create_swift_config(**kwargs):
     return SwiftSeqStrings.swift_conf_filename
 
 
-def get_app_blocks(apps, wrapper_dir, tmp_dir):
+def get_app_blocks(apps, wrapper_dir, tmp_dir, apps_workflow):
     """
     Formats app blocks for all apps in a given site.
 
@@ -68,15 +73,28 @@ def get_app_blocks(apps, wrapper_dir, tmp_dir):
     :return: list<SwiftConfigBlock> A config block for each app in this given site
     """
     app_wrapper_path = os.path.join(wrapper_dir, '{app_name}.sh')
-    return [
-        SwiftConfigBlock(
-            'app.{app_name}'.format(app_name=app_name),
-            SwiftConfigProp('executable', app_wrapper_path.format(app_name=app_name)),
-            SwiftConfigProp('maxWallTime', app_config.get('walltime', SwiftSeqStrings.app_walltime_default)),
-            SwiftConfigProp('env.TMPDIR', tmp_dir, override='{key}="{val}"')
+
+    # If workflow config isn't available default to an empty dict which will always defer
+    # to global app config walltime
+    try:
+        app_workflow_configs = apps_workflow.programs_in_workflow
+    except AttributeError:
+        app_workflow_configs = dict()
+
+    # Iterate though apps to form app blocks
+    app_blocks = list()
+    for app_name, app_config in six.iteritems(apps):
+        walltime = (app_workflow_configs.get(app_name, dict()).get('walltime') or
+                    app_config.get('walltime', SwiftSeqStrings.app_walltime_default))
+        app_blocks.append(
+            SwiftConfigBlock(
+                'app.{app_name}'.format(app_name=app_name),
+                SwiftConfigProp('executable', app_wrapper_path.format(app_name=app_name)),
+                SwiftConfigProp('maxWallTime', walltime),
+                SwiftConfigProp('env.TMPDIR', tmp_dir, override='{key}="{val}"')
+            )
         )
-        for app_name, app_config in six.iteritems(apps)
-    ]
+    return app_blocks
 
 
 def get_execution_block(host_number, site, **kwargs):

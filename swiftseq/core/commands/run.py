@@ -241,7 +241,8 @@ def main(args=None):
         'job_time': args['job_time'],
         'work_dir': work_dir,
         'project_id': args['project_id'],
-        'job_options': args['job_options']
+        'job_options': args['job_options'],
+        'workflow': workflow
     })
 
     # Compose Swift script based on run type, output information to user

@@ -743,7 +743,7 @@ def compose_RgMergeSort(app_name, **kwargs):
         'absDirName=$(dirname $logFile)\n'
         
         '# Use Sambamba for sorting\n'
-        '{exe_sambamba} merge --nthreads={max_cores} --out=/dev/stdout $inBams 2>> $logFile | {exe_sambamba} sort '
+        '{exe_sambamba} merge --nthreads={max_cores} /dev/stdout $inBams 2>> $logFile | {exe_sambamba} sort '
             '--nthreads={max_cores} --memory-limit={max_mem}M --tmpdir=$tmpDir --out=/dev/stdout /dev/stdin 2>> $logFile '
             '2>&1 | {exe_bamutil} splitChromosome --in -.bam --out ${{absDirName}}/${{ID}}.contig. --noef'
             '2>> $logFile\n\n'
@@ -831,7 +831,7 @@ def compose_ContigMergeSort(app_name, **kwargs):
         'echo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
         # '{exe_novosort} --threads {max_cores} --ram {max_mem}M --tmpcompression 6 --tmpdir $tmpDir --output $outBam '
         #     '--index $inBams >> $logFile 2>&1\n\n'
-        '{exe_sambamba} merge --nthreads={max_cores} --out=/dev/stdout $inBams 2>> $logFile | {exe_sambamba} sort '
+        '{exe_sambamba} merge --nthreads={max_cores} /dev/stdout $inBams 2>> $logFile | {exe_sambamba} sort '
         '--nthreads={max_cores} --memory-limit={max_mem}M --tmpdir=$tmpDir --out=$outBam /dev/stdin >> $logFile 2>&1\n'
         '{exe_sambamba} index --nthreads={max_cores} $outBam\n\n'
         

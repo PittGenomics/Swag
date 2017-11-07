@@ -744,9 +744,9 @@ def compose_RgMergeSort(app_name, **kwargs):
         
         '# Use Sambamba for sorting\n'
         '{exe_sambamba} merge --nthreads={max_cores} /dev/stdout $inBams 2>> $logFile | {exe_sambamba} sort '
-            '--nthreads={max_cores} --memory-limit={max_mem}M --tmpdir=$tmpDir --out=/dev/stdout /dev/stdin 2>> $logFile '
-            '2>&1 | {exe_bamutil} splitChromosome --in -.bam --out ${{absDirName}}/${{ID}}.contig. --noef'
-            '2>> $logFile\n\n'
+            '--nthreads={max_cores} --memory-limit={max_mem}M --tmpdir=$tmpDir --out=/dev/stdout /dev/stdin 2>> $logFile'
+            ' | {exe_bamutil} splitChromosome --in -.bam --out ${{absDirName}}/${{ID}}.contig. --noef'
+            ' 2>> $logFile\n\n'
         # '{exe_novosort} --threads {max_cores} --ram {max_mem}M --tmpcompression 6 --tmpdir $tmpDir $inBams 2>> '
         #     '$logFile | {exe_bamutil} splitChromosome --in -.bam --out ${{absDirName}}/${{ID}}.contig. --noef 2>> '
         #     '$logFile\n\n'

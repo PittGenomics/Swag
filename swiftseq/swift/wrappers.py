@@ -747,7 +747,7 @@ def compose_RgMergeSort(app_name, **kwargs):
         '# if a single bam samtools view if multiple sambamba merge\n'
         '# Use Sambamba for merging. Sorting handled at previous steps\n'
         'if [[ $counter -eq 1 ]]; then\n'
-        '\t{exe_samtools} view -b $inBams'
+        '\t' + exe_config['samtools'] + ' view -b $inBams'
             '| {exe_bamutil} splitChromosome --in -.bam --out ${{absDirName}}/${{ID}}.contig. --noef'
             ' 2>> $logFile\n'
         'else\n'

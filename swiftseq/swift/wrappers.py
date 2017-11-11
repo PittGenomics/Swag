@@ -834,7 +834,7 @@ def compose_ContigMergeSort(app_name, **kwargs):
         
         '# Use Sambamba merge. Contigs should already be sorted\n'
         'echo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
-        '{exe_sambamba} merge --nthreads={max_cores} --out=$outBam $inBams 2>> $logFile\n\n'
+        '{exe_sambamba} merge --nthreads={max_cores} $outBam $inBams 2>> $logFile\n\n'
 
         + exe_config['samtools'] + ' index $outBam 2>> $logFile\n\n'
         

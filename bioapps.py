@@ -24,7 +24,7 @@ _AppPaths = { 'BwaMem' : 'echo',
           }
 
 @App('bash', dfk)
-def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None, 
+def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None,
            outputs=[], stdout=None, stderr=None, mock=False):
     '''
     outputs = [file logFile, file outBam, file outBamBai]
@@ -33,7 +33,7 @@ def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None,
         cmd_line = 'echo "Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}"';
     else:
         cmd_line = 'Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}';
-        
+
 
 # bwaMem (does Bam2Fastq)
 @App('bash', dfk)
@@ -48,7 +48,6 @@ def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=N
     '''
     inputs : RGalnBams
     outputs : [alnSampleContigBamFile, alnSampleBamLog, alnSampleContigBams....]
-    
     '''
 
     inBams = ' '.join([i.filename for i in inputs])
@@ -78,7 +77,7 @@ def PlatypusGerm (inBam,inBamIndex, sampleID, dirpath, coords, outputs=[], stdou
         cmd_line = 'echo "/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};"'
     else:
         cmd_line = '/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};'
-        
+
 @App('bash', dfk)
 def IndexBam (inBam, outputs=[], stdout=None, stderr=None, mock=False):
     '''
@@ -103,19 +102,19 @@ def ContigMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stde
     '''
 
     inBams = ' '.join([i.filename for i in inputs])
-    
+
     if mock == True:
         cmd_line = '''echo "/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
         {outputs[0]} \
         {0} \
-        {1} \ 
+        {1} \
         %s "''' % inBams
 
     else:
         cmd_line = '''/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
         {outputs[0]} \
         {0} \
-        {1} \ 
+        {1} \
         %s ''' % inBams
 
 @App('bash', dfk)
@@ -189,45 +188,45 @@ def BamutilPerBaseCoverage(genoMergeBam, sampleID, sampleDir, outputs=[], stdout
 '''
 ### Obtain index
 app (file logFile, file outIndex) IndexBam (file inBam) {
-	IndexBam filename(inBam) filename(outIndex) filename(logFile);
+        IndexBam filename(inBam) filename(outIndex) filename(logFile);
 }
 
 
 
 # NOT CURRENTLY FUNCTIONAL wrapper needs adjustment mosaikAlnBam2FastqWrapper
 app (file logFile, file outBam, file outBamBai) Mosaik (file inBam, file readGroupStr, string sampleID, string dir) {
-	Mosaik filename(inBam) filename(outBam) filename(logFile) sampleID dir;
+        Mosaik filename(inBam) filename(outBam) filename(logFile) sampleID dir;
 }
 
 # bwaAln (does Bam2Fastq)
 app (file logFile, file outBam, file outBamBai) BwaAln (file inBam, file readGroupStr, string sampleID, string dir) {
-	BwaAln filename(inBam) filename(outBam) filename(readGroupStr) filename(logFile) sampleID dir;
+        BwaAln filename(inBam) filename(outBam) filename(readGroupStr) filename(logFile) sampleID dir;
 }
 
 
 # mergeSort for read group files
 app (file logFile, file [] outBams, file sampleContigs) RgMergeSort (file [] inBam, string sampleID, string dir) {
-	RgMergeSort filename(sampleContigs) filename(logFile) sampleID dir filenames(inBam);
+        RgMergeSort filename(sampleContigs) filename(logFile) sampleID dir filenames(inBam);
 }
 
 # Base quality recalibration
 app (file logFile, file outBam, file outBamGrp) GatkBqsr (file inBam, string sampleID, string dir) {
-	GatkBqsr filename(inBam) filename(outBam) filename(logFile) filename(outBamGrp) sampleID dir;
+        GatkBqsr filename(inBam) filename(outBam) filename(logFile) filename(outBamGrp) sampleID dir;
 }
 
 
 # flagstat
 app (file logFile, file outStats) SamtoolsFlagstat (file inBam, string sampleID, string dir) {
-	SamtoolsFlagstat filename(inBam) filename(outStats) filename(logFile) sampleID dir;
+        SamtoolsFlagstat filename(inBam) filename(outStats) filename(logFile) sampleID dir;
 }
 
 # flagstat
 app (file logFile, file outCov) BamutilPerBaseCoverage (file inBam, string sampleID, string dir) {
-	BamutilPerBaseCoverage filename(inBam) filename(outCov) filename(logFile) sampleID dir;
+        BamutilPerBaseCoverage filename(inBam) filename(outCov) filename(logFile) sampleID dir;
 }
 
 # getCoverage
 app (file logFile, file coverage, file DoC) BedtoolsGenomeCoverage (file inBam, string sampleID, string dir) {
-	BedtoolsGenomeCoverage filename(inBam) filename(coverage) filename(DoC) filename(logFile) sampleID dir;
+        BedtoolsGenomeCoverage filename(inBam) filename(coverage) filename(DoC) filename(logFile) sampleID dir;
 }
 '''

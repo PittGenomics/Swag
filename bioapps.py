@@ -30,18 +30,18 @@ def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None,
     outputs = [file logFile, file outBam, file outBamBai]
     '''
     if mock == True:
-        cmd_line = 'echo "Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}"';
+        return 'echo "Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}"';
     else:
-        cmd_line = 'Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}';
+        return 'Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}';
 
 
 # bwaMem (does Bam2Fastq)
 @App('bash', dfk)
 def BwaMem(inBam, RGname, sampleID, dirpath, outputs=[], stdout=None, stderr=None, mock=False):
     if mock == True:
-        cmd_line = 'echo /share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+        return 'echo /share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
     else:
-        cmd_line = '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+        return '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
 
 @App('bash', dfk)
 def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
@@ -52,9 +52,9 @@ def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=N
 
     inBams = ' '.join([i.filename for i in inputs])
     if mock == True:
-        cmd_line = 'echo /share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
+        return 'echo /share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
     else:
-        cmd_line = '/share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
+        return '/share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
 
 @App('bash', dfk)
 def PicardMarkDuplicates (inBam, sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
@@ -62,9 +62,9 @@ def PicardMarkDuplicates (inBam, sampleID, dirpath, inputs=[], outputs=[], stdou
     outputs = [file logFile, file outBam, file outBamMetrics]
     '''
     if mock == True:
-        cmd_line = 'echo "/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}"'
+        return 'echo "/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}"'
     else:
-        cmd_line = '/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}'
+        return '/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}'
 
 
 
@@ -74,9 +74,9 @@ def PlatypusGerm (inBam,inBamIndex, sampleID, dirpath, coords, outputs=[], stdou
     outputs = [file logFile, file outVcf]
     '''
     if mock == True:
-        cmd_line = 'echo "/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};"'
+        return 'echo "/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};"'
     else:
-        cmd_line = '/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};'
+        return '/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};'
 
 @App('bash', dfk)
 def IndexBam (inBam, outputs=[], stdout=None, stderr=None, mock=False):
@@ -84,9 +84,9 @@ def IndexBam (inBam, outputs=[], stdout=None, stderr=None, mock=False):
     outputs = [file logFile, file outIndex]
     '''
     if mock == True:
-        cmd_line = 'echo "/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};"'
+        return 'echo "/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};"'
     else:
-        cmd_line = '/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};'
+        return '/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};'
 
 '''
 ### mergeSort for scatter-gathered contigs
@@ -104,14 +104,14 @@ def ContigMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stde
     inBams = ' '.join([i.filename for i in inputs])
 
     if mock == True:
-        cmd_line = '''echo "/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
+        return '''echo "/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
         {outputs[0]} \
         {0} \
         {1} \
         %s "''' % inBams
 
     else:
-        cmd_line = '''/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
+        return '''/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
         {outputs[0]} \
         {0} \
         {1} \
@@ -130,7 +130,7 @@ app (file logFile, file outVcf) ConcatVcf (file [auto] vcfFiles, string sampleID
     vcfs = ' '.join([i.filename for i in inputs])
 
     if mock == True:
-        cmd_line = '''echo "/share/swiftseq/run/wrappers/ConcatVcf.sh {outputs[1]} \
+        return '''echo "/share/swiftseq/run/wrappers/ConcatVcf.sh {outputs[1]} \
         {outputs[0]} \
         {0} \
         {1} \
@@ -138,7 +138,7 @@ app (file logFile, file outVcf) ConcatVcf (file [auto] vcfFiles, string sampleID
         ''' % vcfs
 
     else:
-        cmd_line = '''/share/swiftseq/run/wrappers/ConcatVcf.sh {outputs[1]} \
+        return '''/share/swiftseq/run/wrappers/ConcatVcf.sh {outputs[1]} \
         {outputs[0]} \
         {0} \
         {1} \
@@ -153,13 +153,13 @@ def SamtoolsFlagstat (genoMergeBam, sampleID, sampleDir, outputs=[], stdout=None
     '''
 
     if mock == True:
-        cmd_line = '''echo "/share/swiftseq/run/wrappers/SamtoolsFlagstat.sh {0} {outputs[1]} \
+        return '''echo "/share/swiftseq/run/wrappers/SamtoolsFlagstat.sh {0} {outputs[1]} \
         {outputs[0]} \
         {1} \
         {2}"'''
 
     else:
-        cmd_line = '''/share/swiftseq/run/wrappers/SamtoolsFlagstat.sh {0} {outputs[1]} \
+        return '''/share/swiftseq/run/wrappers/SamtoolsFlagstat.sh {0} {outputs[1]} \
         {outputs[0]} \
         {1} \
         {2}'''
@@ -172,13 +172,13 @@ def BamutilPerBaseCoverage(genoMergeBam, sampleID, sampleDir, outputs=[], stdout
     '''
 
     if mock == True:
-        cmd_line = '''echo "/share/swiftseq/run/wrappers/BamutilPerBaseCoverage.sh {0} {outputs[1]} \
+        return '''echo "/share/swiftseq/run/wrappers/BamutilPerBaseCoverage.sh {0} {outputs[1]} \
         {outputs[0]} \
         {1} \
         {2}"'''
 
     else:
-        cmd_line = '''echo "/share/swiftseq/run/wrappers/BamutilPerBaseCoverage.sh {0} {outputs[1]} \
+        return '''echo "/share/swiftseq/run/wrappers/BamutilPerBaseCoverage.sh {0} {outputs[1]} \
         {outputs[0]} \
         {1} \
         {2}"'''

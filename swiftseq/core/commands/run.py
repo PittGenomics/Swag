@@ -159,7 +159,7 @@ def main(args=None):
     util_scripts = swiftseq.util.get_util_scripts()
 
     # Output welcome to the user
-    subprocess.call('sh {cmd}'.format(cmd=util_scripts['util_graphic']), shell=True)
+    subprocess.call('$SHELL {cmd}'.format(cmd=util_scripts['util_graphic']), shell=True)
     swiftseq.util.message_to_screen('\nPreparing run...\n')
 
     # Set some environment variables for future use

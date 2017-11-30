@@ -158,8 +158,8 @@ def main(args=None):
     # Get bundles util scripts
     util_scripts = swiftseq.util.get_util_scripts()
 
-    # Output welcome to the userity_Co
-    subprocess.call(util_scripts['util_graphic'], shell=True)
+    # Output welcome to the user
+    subprocess.call('sh {cmd}'.format(cmd=util_scripts['util_graphic']), shell=True)
     swiftseq.util.message_to_screen('\nPreparing run...\n')
 
     # Set some environment variables for future use

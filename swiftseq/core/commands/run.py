@@ -73,6 +73,8 @@ def populate_parser(parser):
                         help='The data directory containing sequencing data to be run (Required).')
     parser.add_argument('--workflow', required=True,
                         help='The SwiftSeq workflow (in .json format) that will be run over input data (Required).')
+    parser.add_argument('--swift-config', help='Path to a pre-made Swift configuration file. If this is given, '
+                                               'all other config related parameters will be ignored.')
     parser.add_argument('--ref-config', required=True,
                         help='Configuration file that contains paths to required reference files (Required).')
     parser.add_argument('--exe-config', required=True,
@@ -228,8 +230,8 @@ def main(args=None):
         swiftseq_inputdata_symlinks=inputdata_symlinks
     )
 
-    # Compose Swift configuration
-    swift_conf_filepath = create_swift_config(**{
+    # Use or compose Swift configuration
+    swift_conf_filepath = args['swift_config'] if args['swift_config'] else create_swift_config(**{
         'wrapper_dir': wrapper_dir,
         'tmp_dir': args['tmp'],
         'disable_lazy_errors': args['disable_lazy_errors'],
@@ -273,6 +275,7 @@ def main(args=None):
         swift_config=swift_conf_filepath,
         swift_script=swift_script
     ), shell=True)
+
 
 if __name__ == '__main__':
     main()

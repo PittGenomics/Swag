@@ -857,60 +857,62 @@ def compose_ContigMergeSort(app_name, **kwargs):
 def compose_ConcatVcf(app_name, **kwargs):
     """ Uses sortByRef from GATK's Geraldine"""
 
+    exe_config = kwargs.get('exe_config')
     ref_config = kwargs.get('ref_config')
 
-    wrapper = ('#!/bin/bash\n\n'
+    wrapper = (
+        '#!/bin/bash\n\n'
+        
+        '#set -e\n\n'
 
-           '#set -e\n\n'
+        'outVcf=$1\n'
+        'logFile=$2\n'
+        'ID=$3\n'
+        'dir=$4\n'
+        'shift 4\n'
+        '# Load all the rest in this variable\n'
+        'contigVcfs=$*\n\n'
 
-           'outVcf=$1\n'
-           'logFile=$2\n'
-           'ID=$3\n'
-           'dir=$4\n'
-           'shift 4\n'
-           '# Load all the rest in this variable\n'
-           'contigVcfs=$*\n\n'
+        'export PATH={env_PATH}\n\n'
 
-           'export PATH=' + kwargs.get('env_PATH') + '\n\n'
+        '{hostname_info}\n\n'
 
-           + hostname_info() + '\n\n'
+        '# Will check if file had data in it\n'
+        '# if it does not the file will not be passed to the reduce vcfs step\n'
+        'inVcfs=""\n'
+        'for file in $contigVcfs;do\n'
+        '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
+        '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
+        '\telse\n'
+        '\t\tinVcfs=$inVcfs" "I=$file\n'
+        '\t\theaderVcf=$file\n'
+        '\tfi\n'
+        'done\n\n'
 
-           '# Will check if file had data in it\n'
-           '# if it does not the file will not be passed to the reduce vcfs step\n'
-           'inVcfs=""\n'
-           'for file in $contigVcfs;do\n'
-           '\tif [ "$(head -1 $file)" == "no_mapped_reads" ]; then\n'
-           '\t\techo $file: no_mapped_reads >> $logFile 2>&1\n'
-           '\telse\n'
-           '\t\tinVcfs=$inVcfs" "$file\n'
-           '\t\theaderVcf=$file\n'
-           '\tfi\n'
-           'done\n\n'
-
-           '#Test if at least one vcf contains variants\n'
-           'if [ "$inVcfs" == "" ]; then\n'
-           '\techo All vcfs contained no_mapped_reads...exiting >> $logFile 2>&1\n'
-           '\techo no_mapped_reads > $outVcf\n'
-           '\texit 0\n'
-           'else\n'
-           '\techo At least one bam contains mapped reads...continuing... >> $logFile 2>&1\n'
-           'fi\n\n'
-
-           'tmpVcf=$(basename $outVcf).tmp\n\n'
-
-           '# Cat vcfs together\n'
-           'cat $inVcfs | grep -v "^#\|^chrom" 2>> $logFile > $tmpVcf\n\n'
-
-           '# Sort Vcf... sed to create proper headers for VarScan vcfs\n'
-           'head -5000 $headerVcf | grep "^#\|^chrom" | sed ":^chrom: s:chrom:#chrom:" 2>> $logFile > $outVcf\n'
-           'perl ' + kwargs.get('util_sortByRef') + ' $tmpVcf ' + ref_config[
-               'ref'] + '.fai 2>> $logFile >> $outVcf\n\n'
-
-                        'echo sorting complete >> $logFile\n')
+        '#Test if at least one vcf contains variants\n'
+        'if [ "$inVcfs" == "" ]; then\n'
+        '\techo All vcfs contained no_mapped_reads...exiting >> $logFile 2>&1\n'
+        '\techo no_mapped_reads > $outVcf\n'
+        '\texit 0\n'
+        'else\n'
+        '\techo At least one bam contains mapped reads...continuing... >> $logFile 2>&1\n'
+        'fi\n\n'
+        
+        '{exe_java} {gc_flag} {java_mem} -jar {jar_picard} SortVcf $inVcfs OUTPUT=$outVcf '
+        'SEQUENCE_DICTIONARY={ref_refDict}\n\n'
+        
+        'echo sorting complete >> $logFile\n'
+    )
 
     write_wrapper(
         filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
-        contents=wrapper,
+        contents=wrapper.format(
+            hostname_info=hostname_info(),
+            exe_java=exe_config['java'],
+            jar_picard=exe_config['picard'],
+            ref_refDict=ref_config['refDict'],
+            **kwargs
+        ),
         executable=True
     )
 

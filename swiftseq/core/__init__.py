@@ -5,6 +5,24 @@ running the actual SwiftSeq run.
 """
 from copy import copy
 
+conda_install_packages = [
+    'samtools',
+    'bcftools',
+    'gatk',
+    'bamutil',
+    'picard',
+    'bedtools',
+    'delly',
+    'snpeff',
+    'bwa',
+    'platypus-variant',
+    'scalpel',
+    'varscan',
+    'strelka',
+    'java-jdk',
+    'python=2.7'
+]
+
 
 class SwiftSeqStrings(object):
     wiki_link = 'X'
@@ -104,6 +122,24 @@ class SwiftSeqWorkflowValidation(object):
 
 
 class SwiftSeqSupported(object):
+    conda_install_packages = [
+        'samtools',
+        'bcftools',
+        'gatk4',
+        'bamutil',
+        'picard=2.15',
+        'bedtools',
+        'delly',
+        'snpeff',
+        'bwa',
+        'platypus-variant',
+        'scalpel',
+        'varscan',
+        'strelka',
+        'java-jdk',
+        'python=2.7'
+    ]
+
     _supported = {
         'programs': {
             'gatk_post-processing': {'GatkIndelRealignment', 'GatkBqsr'},

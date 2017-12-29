@@ -79,6 +79,9 @@ def populate_parser(parser):
                         help='Configuration file that contains paths to required reference files (Required).')
     parser.add_argument('--exe-config', required=True,
                         help='Configuration file that contains paths algorithm executables (Required).')
+    parser.add_argument('--swift-path', default='swift', help='If provided, will use this path as the full path to the '
+                                                              'Swift executable; otherwise, defaults to finding Swift '
+                                                              'in PATH.')
     parser.add_argument('--run-name', default='SwiftSeq_{date}_{id}'.format(
                             date=datetime.now().strftime('%d%b%Y'),
                             id=str(uuid.uuid4())[:8]
@@ -271,7 +274,7 @@ def main(args=None):
     # Execute swift command
     # TODO See if we can execute this not as a direct shell, for security reasons
     subprocess.call('{swift_exe} -config {swift_config} {swift_script}'.format(
-        swift_exe=exe_config['swift'],
+        swift_exe=args['swift_path'],
         swift_config=swift_conf_filepath,
         swift_script=swift_script
     ), shell=True)

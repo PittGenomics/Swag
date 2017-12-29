@@ -29,7 +29,7 @@ def main(args=None):
 
     # Get arguments if this is being executed directly
     if not args:
-        parser = argparse.ArgumentParser(prog='swiftseq restart')
+        parser = argparse.ArgumentParser(prog='swiftseq install-env')
         populate_parser(parser)
         args = vars(parser.parse_args())
 

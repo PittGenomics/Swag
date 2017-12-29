@@ -45,24 +45,24 @@ def main(args=None):
     packages = [p[0] for p in SwiftSeqSupported.conda_install_packages]
 
     # Check for current channels with conda config --show-sources
-    show_sources = subprocess.check_output(['conda', 'config', '--show-sources']).decode()
+    show_sources = subprocess.check_output([conda_path, 'config', '--show-sources']).decode()
     old_channels = re.findall(r'\s+- (\S+)\n', show_sources)
     new_channels = ['r', 'defaults', 'conda-forge', 'bioconda']
 
     # Install new channels temporarily
     for channel in new_channels:
-        subprocess.call(['conda', 'config', '--add', 'channels', channel])
+        subprocess.call([conda_path, 'config', '--add', 'channels', channel])
 
     # Create new conda environment and install packages
-    subprocess.call(['conda', 'create', '--yes', '--name', conda_env_name] + packages)
+    subprocess.call([conda_path, 'create', '--yes', '--name', conda_env_name] + packages)
 
     # Uninstall new channels
     for channel in new_channels:
-        subprocess.call(['conda', 'config', '--remove', 'channels', channel])
+        subprocess.call([conda_path, 'config', '--remove', 'channels', channel])
 
     # Reinstate old order of old channels
     for channel in old_channels[::-1]:
-        subprocess.call(['conda', 'config', '--add', 'channels', channel])
+        subprocess.call([conda_path, 'config', '--add', 'channels', channel])
 
     # Write out executables config
     with open(args['exe_config_location'], 'w') as exe_config:
@@ -71,9 +71,10 @@ def main(args=None):
         exe_config.write('# executables\n')
         exe_config.write('#' * 15 + '\n')
 
+        conda_dir = os.path.split(os.path.split(conda_path)[0])[0]
         for installed_program_tag, conda_bin_name in SwiftSeqSupported.conda_install_packages:
             program_name = installed_program_tag.split('=')[0]
-            program_path = os.path.join(conda_path, 'envs', conda_env_name, 'bin', conda_bin_name)
+            program_path = os.path.join(conda_dir, 'envs', conda_env_name, 'bin', conda_bin_name)
             exe_config.write('{name}={path}\n'.format(name=program_name, path=program_path))
 
 

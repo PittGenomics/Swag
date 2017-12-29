@@ -335,8 +335,7 @@ class SwiftSeqApps(object):
         'ContigMergeSort': {
             'name': 'ContigMergeSort',
             'exclusion': None,
-
-                            'walltime': '24:00:00', 'pool': 'one'}
+            'walltime': '24:00:00', 'pool': 'one'}
         }
 
     @classmethod

@@ -122,22 +122,22 @@ class SwiftSeqWorkflowValidation(object):
 
 
 class SwiftSeqSupported(object):
+    # (bioconda package name, name of executable bioconda installs)
     conda_install_packages = [
-        'samtools',
-        'bcftools',
-        'gatk4',
-        'bamutil',
-        'picard=2.15',
-        'bedtools',
-        'delly',
-        'snpeff',
-        'bwa',
-        'platypus-variant',
-        'scalpel',
-        'varscan',
-        'strelka',
-        'java-jdk',
-        'python=2.7'
+        ('samtools', 'samtools'),
+        ('bcftools', 'bcftools'),
+        ('gatk4', 'gatk4'),
+        ('bamutil', 'bam'),
+        ('picard=2.15', 'picard'),
+        ('bedtools', 'bedtools'),
+        ('delly', 'delly'),
+        ('snpeff', 'snpeff'),
+        ('bwa', 'bwa'),
+        ('platypus-variant', 'platypus'),
+        ('scalpel', 'scalpel-discovery'),
+        ('varscan', 'varscan'),
+        ('strelka', 'strelka'),
+        ('java-jdk=8.0.112', 'java'),
     ]
 
     _supported = {

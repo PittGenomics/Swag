@@ -405,7 +405,7 @@ def compose_GatkIndelRealignment(app_name, **kwargs):
             eof_check=eof_check('outBam'),
 
             # Specific programs in the configurations
-            exe_java=exe_config['java'],
+            exe_java=exe_config['java-jdk'],
             exe_gatk=exe_config['gatk'],
             ref_ref=ref_config['ref'],
             ref_indels1kg=ref_config['indels1kg'],
@@ -450,7 +450,7 @@ def compose_GatkBqsrGrp(app_name, **kwargs):
            + bam_indexing(exe_config['samtools'], 'inBam') + '\n\n'
 
            '# Do base quality recalibration to produce grp file\n'
-           + exe_config['java'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config[
+           + exe_config['java-jdk'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config[
                'gatk']
            + ' -I $inBam -R ' + ref_config['ref'] + ' -T BaseRecalibrator ' + kwargs.get('app_parameters') +
            ' -knownSites ' + ref_config['dbSnpVcf'] + ' -knownSites ' + ref_config['indelsMills']
@@ -495,7 +495,7 @@ def compose_GatkBqsr(app_name, **kwargs):
            + bam_indexing(exe_config['samtools'], 'inBam') + '\n\n'
 
            '# Generate recalibrated bam\n'
-           + exe_config['java'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem')
+           + exe_config['java-jdk'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem')
            + ' -jar ' + exe_config['gatk'] +
            ' -I $inBam -R ' + ref_config['ref'] + ' -T PrintReads -BQSR $grp -o $outBam >> \$logFile 2>&1\n\n'
 
@@ -549,7 +549,7 @@ def compose_GatkBqsrGrpReduce(app_name, **kwargs):
              'done\n\n'
     
              '# reduce grps\n'
-           + exe_config['java'] + ' ' + grpReduce_filepath + ' $outGrp $inGrps >> $logFile 2>&1')
+           + exe_config['java-jdk'] + ' ' + grpReduce_filepath + ' $outGrp $inGrps >> $logFile 2>&1')
 
     write_wrapper(
         filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
@@ -648,8 +648,8 @@ def compose_PicardMarkDuplicates(app_name, **kwargs):
 
            '## Here need to be sure you are specifying validation stringency in json\n'
            '## Also need to specify what should be done with duplicates\n'
-           + exe_config['java'] + ' ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config[
-               'markDuplicates'] + ' INPUT=$inBam '
+           + exe_config['java-jdk'] + ' ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config[
+               'picard'] + ' MarkDuplicates INPUT=$inBam '
            'OUTPUT=$outBam METRICS_FILE=$metrics TMP_DIR=$tmpDir ' + kwargs.get('app_parameters') + ' >> $logFile 2>&1\n\n'
 
           '# Erase the temporary directory\n'
@@ -908,7 +908,7 @@ def compose_ConcatVcf(app_name, **kwargs):
         filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
         contents=wrapper.format(
             hostname_info=hostname_info(),
-            exe_java=exe_config['java'],
+            exe_java=exe_config['java-jdk'],
             jar_picard=exe_config['picard'],
             ref_refDict=ref_config['refDict'],
             **kwargs
@@ -1058,7 +1058,7 @@ def compose_SnpEff(app_name, **kwargs):
            'export data_dir=$' + ref_config['snpEffDataDir'] + '\n\n'
 
                                                             '# Execute snpEff\n'
-           + exe_config['java'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar '
+           + exe_config['java-jdk'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar '
            + exe_config['snpEff'] + ' -v ' + ref_config['snpEffBuild'] + ' -c ' + ref_config['snpEffConfig'] +
            ' ' + kwargs.get('app_parameters') + ' $inVcf 2>> $logFile > $outVcf\n\n'
 
@@ -1199,7 +1199,7 @@ def compose_PlatypusGerm(app_name, **kwargs):
 
            '# Genotype\n'
            + exe_config['python'] + ' ' + exe_config[
-               'platypus'] + ' callVariants --nCPU ' + kwargs.get('packing_cores') + ' --output $outVcf '
+               'platypus-variant'] + ' callVariants --nCPU ' + kwargs.get('packing_cores') + ' --output $outVcf '
                                                                           '--refFile ' + ref_config[
                'ref'] + ' --regions $coords ' + kwargs.get('app_parameters') + ' --bamFiles $inBam >> $logFile 2>&1\n\n')
 
@@ -1290,7 +1290,7 @@ def compose_HaplotypeCaller(app_name, **kwargs):
            + skip_unknown_chr() + '\n\n'
 
            '# Genotype\n'
-           + exe_config['java'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('ram_pool_mem') + ' -jar ' + exe_config['gatk'] +
+           + exe_config['java-jdk'] + ' -Djava.io.tmpdir=$tmpDir ' + kwargs.get('ram_pool_mem') + ' -jar ' + exe_config['gatk4'] +
            ' -T HaplotypeCaller -R ' + ref_config['ref'] + ' -I $inBam -L $coords -nct ' + str(int(kwargs.get('packing_cores')) * 2) +
            ' --dbsnp ' + ref_config['dbSnpVcf'] + ' -o $outVcf ' + kwargs.get('app_parameters') + ' >> $logFile 2>&1\n\n'
 
@@ -1555,7 +1555,7 @@ def compose_Mutect(app_name, **kwargs):
            + skip_unknown_chr() + '\n\n'
 
            '# Genotype\n'
-           + exe_config['java'] + ' ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config['mutect'] +
+           + exe_config['java-jdk'] + ' ' + kwargs.get('gc_flag') + ' ' + kwargs.get('java_mem') + ' -jar ' + exe_config['mutect'] +
            ' --analysis_type MuTect --reference_sequence ' + ref_config['ref'] +
            ' --cosmic ' + ref_config['cosmic'] + ' --dbsnp ' + ref_config['dbSnpVcf'] +
            ' -L $coords --input_file:normal $inNormal --input_file:tumor $inTumor'
@@ -1722,7 +1722,7 @@ def compose_Varscan(app_name, **kwargs):
             'fi\n\n'
 
             '# Genotype - outfile will be local\n'
-           + exe_config['java'] + ' -jar ' + exe_config['varscan'] + ' somatic ' + kwargs.get('app_parameters') +
+           + exe_config['java-jdk'] + ' -jar ' + exe_config['varscan'] + ' somatic ' + kwargs.get('app_parameters') +
            ' $nPileup $tPileup $ID 2>> $logFile\n\n'
 
            '# Move to the proper vcf files\n'
@@ -1875,8 +1875,8 @@ def compose_Strelka(app_name, **kwargs):
            'echo config: $config >> $logFile\n\n'
 
            '# Using default (./strelkaAnalysis)  output dir\n' +
-           exe_config['strelka'] + ' --normal=$inNormal --tumor=$inTumor --ref=' + ref_config['ref'] +
-           ' --config=$config --output-dir=$outDir 2>> $logFile\n\n'
+           exe_config['python'] + ' ' + exe_config['strelka'] + ' --normalBam=$inNormal --tumorBam=$inTumor --referenceFasta=' + ref_config['ref'] +
+           ' --config=$config --runDir=$outDir 2>> $logFile\n\n'
 
            'echo About to run Strelka... >> $logFile\n\n'
 

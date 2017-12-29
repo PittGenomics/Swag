@@ -42,7 +42,7 @@ def main(args=None):
 
     # Get information about environment
     conda_env_name = args['name'] or 'swiftseq_{}'.format(datetime.now().strftime('%d%b%Y'))
-    packages = [p[0] for p in SwiftSeqSupported.conda_install_packages]
+    packages = [p['bioconda_tag'] for p in SwiftSeqSupported.conda_install_packages]
 
     # Check for current channels with conda config --show-sources
     show_sources = subprocess.check_output([conda_path, 'config', '--show-sources']).decode()
@@ -72,9 +72,9 @@ def main(args=None):
         exe_config.write('#' * 15 + '\n')
 
         conda_dir = os.path.split(os.path.split(conda_path)[0])[0]
-        for installed_program_tag, conda_bin_name in SwiftSeqSupported.conda_install_packages:
-            program_name = installed_program_tag.split('=')[0]
-            program_path = os.path.join(conda_dir, 'envs', conda_env_name, 'bin', conda_bin_name)
+        for package_config in SwiftSeqSupported.conda_install_packages:
+            program_name = package_config['bioconda_tag'].split('=')[0]
+            program_path = os.path.join(conda_dir, 'envs', conda_env_name, package_config.get('rel_path', 'bin'), package_config['exe_name'])
             exe_config.write('{name}={path}\n'.format(name=program_name, path=program_path))
 
 

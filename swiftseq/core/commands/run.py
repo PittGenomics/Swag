@@ -264,7 +264,7 @@ def main(args=None):
     # Write restart config file
     with open(SwiftSeqStrings.restart_conf_filename, 'w') as restart_conf:
         restart_conf.write('\n'.join((
-            'swift={}'.format(exe_config['swift']),
+            'swift={}'.format(args['swift_path']),
             'conf={}'.format(swift_conf_filepath),
             'swiftScript={}'.format(swift_script),
             'SWIFT_HOME={}'.format(os.environ['SWIFT_HOME']),

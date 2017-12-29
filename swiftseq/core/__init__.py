@@ -122,22 +122,29 @@ class SwiftSeqWorkflowValidation(object):
 
 
 class SwiftSeqSupported(object):
-    # (bioconda package name, name of executable bioconda installs)
+    # Possible keys:
+    #    - bioconda_tag: bioconda name and optional version number, fed directly to bioconda
+    #    - exe_name: filename of the executable or jar file or whatever is executed
+    #    - rel_path: relative path from the conda environment root, not including the name of the executable
+    #                or jar file or whatever; defaults to 'bin'
     conda_install_packages = [
-        ('samtools', 'samtools'),
-        ('bcftools', 'bcftools'),
-        ('gatk4', 'gatk4'),
-        ('bamutil', 'bam'),
-        ('picard=2.15', 'picard'),
-        ('bedtools', 'bedtools'),
-        ('delly', 'delly'),
-        ('snpeff', 'snpeff'),
-        ('bwa', 'bwa'),
-        ('platypus-variant', 'platypus'),
-        ('scalpel', 'scalpel-discovery'),
-        ('varscan', 'varscan'),
-        ('strelka', 'strelka'),
-        ('java-jdk=8.0.112', 'java'),
+        {'bioconda_tag': 'samtools=1.6', 'exe_name': 'samtools'},
+        {'bioconda_tag': 'bcftools=1.6', 'exe_name': 'bcftools'},
+        {'bioconda_tag': 'gatk4=4.0b6', 'exe_name': 'gatk-package-4.beta.6-local.jar', 'rel_path': 'share/gatk4-4.0b6-0'},
+        {'bioconda_tag': 'bamutil=1.0.14', 'exe_name': 'bam'},
+        {'bioconda_tag': 'picard=2.15', 'exe_name': 'picard.jar', 'rel_path': 'share/picard-2.15.0-0/snpeff-4.3.1r-0'},
+        {'bioconda_tag': 'bedtools=2.27.1', 'exe_name': 'bedtools'},
+        {'bioconda_tag': 'sambamba=0.6.6', 'exe_name': 'sambamba'},
+        {'bioconda_tag': 'java-jdk=8.0.112', 'exe_name': 'java'},
+        {'bioconda_tag': 'delly=0.7.7', 'exe_name': 'delly'},
+        {'bioconda_tag': 'snpeff=4.3.1r', 'exe_name': 'snpEff.jar', 'rel_path': 'share'},
+        {'bioconda_tag': 'bwa=0.7.17', 'exe_name': 'bwa'},
+        {'bioconda_tag': 'platypus-variant=0.8.1.1', 'exe_name': 'Platypus.py',
+         'rel_path': 'share/platypus-variant-0.8.1.1-0'},
+        {'bioconda_tag': 'scalpel=0.5.3', 'exe_name': 'scalpel-discovery'},
+        {'bioconda_tag': 'varscan=2.4.3', 'exe_name': 'VarScan.jar', 'rel_path': 'share/varscan-2.4.3-0'},
+        {'bioconda_tag': 'strelka=2.8.4', 'exe_name': 'configureStrelkaSomaticWorkflow.py'},
+        {'bioconda_tag': 'python=2.7.13', 'exe_name': 'python'}
     ]
 
     _supported = {

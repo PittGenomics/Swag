@@ -6,6 +6,8 @@ import subprocess
 import re
 from datetime import datetime
 
+import six
+
 import swiftseq.util
 from swiftseq.util.path import is_valid_file
 from swiftseq.core.exceptions import EnvironmentVariableException
@@ -21,6 +23,15 @@ def populate_parser(parser):
     parser.add_argument('--conda-path', help='Path to the conda executable.')
     parser.add_argument('--exe-config-location', default='executables.config',
                         help='Path to write generated executables file.')
+    parser.add_argument('--novo-license-path', help='Path to a novocraft software suite license file.')
+
+
+def get_conda_env_location(conda_path, conda_env_name):
+    return [
+        env_name.split()[1]
+        for env_name in subprocess.check_output([conda_path, 'env', 'list']).decode().split('\n')
+        if conda_env_name in env_name
+    ][0]
 
 
 def main(args=None):
@@ -64,6 +75,9 @@ def main(args=None):
     for channel in old_channels[::-1]:
         subprocess.call([conda_path, 'config', '--add', 'channels', channel])
 
+    # Get path to newly created conda env
+    conda_env_dir = get_conda_env_location(conda_path, conda_env_name)
+
     # Write out executables config
     with open(args['exe_config_location'], 'w') as exe_config:
         # Write out header
@@ -71,11 +85,29 @@ def main(args=None):
         exe_config.write('# executables\n')
         exe_config.write('#' * 15 + '\n')
 
-        conda_dir = os.path.split(os.path.split(conda_path)[0])[0]
+        # conda_dir = os.path.split(os.path.split(conda_path)[0])[0]
         for package_config in SwiftSeqSupported.conda_install_packages:
-            program_name = package_config['bioconda_tag'].split('=')[0]
-            program_path = os.path.join(conda_dir, 'envs', conda_env_name, package_config.get('rel_path', 'bin'), package_config['exe_name'])
-            exe_config.write('{name}={path}\n'.format(name=program_name, path=program_path))
+            executable_key = (
+                (
+                    [package_config['exe_key']]
+                    if isinstance(package_config['exe_key'], six.string_types)
+                    else package_config['exe_key']
+                )
+                if 'exe_key' in package_config
+                else [package_config['bioconda_tag'].split('=')[0]]
+            )
+            # program_name = package_config['bioconda_tag'].split('=')[0]
+            executable_names = (
+                [package_config['exe_name']]
+                if isinstance(package_config['exe_name'], six.string_types)
+                else package_config['exe_name']
+            )
+            for exec_key, exe_name in zip(executable_key, executable_names):
+                exe_path = os.path.join(conda_env_dir, package_config.get('rel_path', 'bin'), exe_name)
+                exe_config.write('{name}={path}\n'.format(name=exec_key, path=exe_path))
+
+            if 'post_hook' in package_config:
+                package_config['post_hook'](conda_env_dir, **args)
 
 
 if __name__ == '__main__':

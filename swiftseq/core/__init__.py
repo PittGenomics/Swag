@@ -3,6 +3,8 @@ The modules and classes in swiftseq.core have to do with the core SwiftSeq funct
 and manipulating user input and passing necessary information to the various functions that output swift code, then
 running the actual SwiftSeq run.
 """
+import os
+import subprocess
 from copy import copy
 
 conda_install_packages = [
@@ -67,11 +69,11 @@ class SwiftSeqStrings(object):
     # Strings for setuptools
     setup_name = 'SwiftSeq'
     setup_version = '1.0.1'
-    setup_description = 'TODO'
-    setup_license = 'TODO'
+    setup_description = 'SwiftSeq Parallel Genomics Workflow'
+    setup_license = 'Apache Software License'
     setup_author = 'Jason Pitt'
-    setup_author_email = 'TODO'
-    setup_url = 'TODO'
+    setup_author_email = 'jason.j.pitt@gmail.com'
+    setup_url = 'https://github.com/PittGenomics/SwiftSeq'
 
 
 class SwiftSeqWorkflowValidation(object):
@@ -121,6 +123,13 @@ class SwiftSeqWorkflowValidation(object):
         }
 
 
+def install_novosort_license(conda_bin_dir, **kwargs):
+    if kwargs.get('novo_license_path'):
+        subprocess.call([
+            os.path.join(conda_bin_dir, 'bin', 'novoalign-license-register'),
+            kwargs.get('novo_license_path')
+        ])
+
 class SwiftSeqSupported(object):
     # Possible keys:
     #    - bioconda_tag: bioconda name and optional version number, fed directly to bioconda
@@ -144,7 +153,13 @@ class SwiftSeqSupported(object):
         {'bioconda_tag': 'scalpel=0.5.3', 'exe_name': 'scalpel-discovery'},
         {'bioconda_tag': 'varscan=2.4.3', 'exe_name': 'VarScan.jar', 'rel_path': 'share/varscan-2.4.3-0'},
         {'bioconda_tag': 'strelka=2.8.4', 'exe_name': 'configureStrelkaSomaticWorkflow.py'},
-        {'bioconda_tag': 'python=2.7.13', 'exe_name': 'python'}
+        {'bioconda_tag': 'python=2.7.13', 'exe_name': 'python'},
+        {
+            'bioconda_tag': 'novoalign=3.07.00',
+            'exe_key': ['novoalign', 'novosort'],
+            'exe_name': ['novoalign', 'novosort'],
+            'post_hook': install_novosort_license
+        }
     ]
 
     _supported = {

@@ -1893,6 +1893,148 @@ def compose_Strelka(app_name, **kwargs):
         executable=True
     )
 
+
+def compose_Novoalign(app_name, **kwargs):
+    """
+    Wrapper for Novoalign
+    """
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = (
+        '#!/bin/bash\n\n'
+        
+        'set -e\n\n'
+        
+        'inBam=$1\n'
+        'outBam=$2\n'
+        'readGroupStr=$3\n'
+        'logFile=$4\n'
+        'ID=$5\n'
+        'dir=$6\n\n'
+        
+        'export PATH={env_PATH}\n\n'
+        
+        '{hostname_info}\n\n'
+        
+        '# Expected output here is ${{ID}}_1.fastq and ${{ID}}_2.fastq if PE\n'
+        '# If SE the expected output is ${{ID}}.fastq\n'
+        '# the # in -o will get replaced by _1 and _2\n'
+        '{exe_bam2fastq} --force -o ${{ID}}#.fastq $inBam >> $logFile 2>&1\n\n'
+        
+        '\treadGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
+        
+        '### Checks for PE output... will align SE vs PE accordingly\n'
+        'alignPrefix=${{ID}}.bwa.tmp\n'
+        'if [ $(find . -name *${{ID}}_1.fastq) ]; then\n\n'
+        
+        '\t{exe_novoalign} -d {ref_novoindex} -f ${{ID}}_1.fastq ${{ID}}_2.fastq -F ILMFQ 2>> $logFile | '
+            '{exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam /dev/stdin 2>> $logFile\n'
+        '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
+        
+        'else\n'
+        
+        '\t{exe_novoalign} -d {ref_novoindex} -f ${{ID}}.fastq -F ILMFQ 2>> $logFile | '
+            '{exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam /dev/stdin 2>> $logFile\n'
+        '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
+        
+        'fi\n\n'
+        
+        '{eof_check}\n'
+    )
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper.format(
+            hostname_info=hostname_info(),
+            eof_check=eof_check('outBam'),
+            exe_bam2fastq=exe_config['bam2fastq'],
+            exe_novoalign=exe_config['novoalign'],
+            exe_samtools=exe_config['samtools'],
+            exe_sambamba=exe_config['sambamba'],
+            ref_novoindex=ref_config['novoindex'],
+            max_cores_div_4=int(kwargs.get('max_cores') / 4),
+            max_mem_div_2=int(kwargs.get('max_mem') / 2),
+            **kwargs
+        ),
+        executable=True
+    )
+
+
+def compose_Bowtie2(app_name, **kwargs):
+    """
+    Wrapper for bowtie2
+    """
+
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = (
+        '#!/bin/bash\n\n'
+        
+        'set -e\n\n'
+        
+        'inBam=$1\n'
+        'outBam=$2\n'
+        'readGroupStr=$3\n'
+        'logFile=$4\n'
+        'ID=$5\n'
+        'dir=$6\n\n'
+        
+        'export PATH={env_PATH}\n\n'
+        
+        '{hostname_info}\n\n'
+        
+        '# Expected output here is ${{ID}}_1.fastq and ${{ID}}_2.fastq if PE\n'
+        '# If SE the expected output is ${{ID}}.fastq\n'
+        '# the # in -o will get replaced by _1 and _2\n'
+        '{exe_bam2fastq} --force -o ${{ID}}#.fastq $inBam >> $logFile 2>&1\n\n'
+        
+        '\treadGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
+        
+        '### Checks for PE output... will align SE vs PE accordingly\n'
+        'alignPrefix=${{ID}}.bwa.tmp\n'
+        'if [ $(find . -name *${{ID}}_1.fastq) ]; then\n\n'
+        
+        
+        '\t{exe_bowtie2} -q -x {ref_bowtie2} -1 ${{ID}}_1.fastq -2 ${{ID}}_2.fastq -p {max_cores} 2>> $logFile | '
+            '{exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam /dev/stdin 2>> $logFile\n'
+        '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
+        
+        'else\n'
+        
+        '\t{exe_bowtie2} -q -x {ref_bowtie2} -1 ${{ID}}_1.fastq -p {max_cores} 2>> $logFile | '
+            '{exe_samtools} view -b - 2>> $logFile | {exe_sambamba} sort --nthreads={max_cores_div_4} '
+            '--memory-limit={max_mem_div_2}M --tmpdir=$tmpDir --out=$outBam /dev/stdin 2>> $logFile\n'
+        '\t{exe_sambamba} index --nthreads={max_cores_div_4} $outBam\n\n'
+        
+        'fi\n\n'
+        
+        '{eof_check}\n'
+    )
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper.format(
+            hostname_info=hostname_info(),
+            eof_check=eof_check('outBam'),
+            exe_bam2fastq=exe_config['bam2fastq'],
+            exe_bowtie2=exe_config['bowtie2'],
+            exe_samtools=exe_config['samtools'],
+            exe_sambamba=exe_config['sambamba'],
+            ref_bowtie2=ref_config['bowtie2'],
+            max_cores_div_4=int(kwargs.get('max_cores') / 4),
+            max_mem_div_2=int(kwargs.get('max_mem') / 2),
+            **kwargs
+        ),
+        executable=True
+    )
+
+
 ################################
 # Print helper functions
 ################################

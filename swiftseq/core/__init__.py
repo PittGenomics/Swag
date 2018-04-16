@@ -344,6 +344,12 @@ class SwiftSeqApps(object):
             'exclusion': None,
             'walltime': '10:00:00',
                       'pool': 'primary'},
+        'FilterVcf': {
+            'name': 'FilterVcf',
+            'exclusion': None,
+            'walltime': '10:00:00',
+            'pool': 'primary'
+        },
         'RgMergeSort': {
             'name': 'RgMergeSort',
             'exclusion': None,

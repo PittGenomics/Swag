@@ -917,6 +917,42 @@ def compose_ConcatVcf(app_name, **kwargs):
     )
 
 
+def compose_FilterVcf(app_name, **kwargs):
+    exe_config = kwargs.get('exe_config')
+    ref_config = kwargs.get('ref_config')
+
+    wrapper = (
+        '#!/bin/bash\n\n'
+        
+        '#set -e\n\n'
+        
+        'outVcf=$1\n'
+        'logFile=$2\n'
+        'ID=$3\n'
+        'dir=$4\n'
+        'inVcf=$5\n\n'
+        
+        'export PATH={env_PATH}\n\n'
+
+        '{hostname_info}\n\n'
+        
+        '{exe_bedtools} intersect -a $inVcf -b {ref_bed} -wa > $outVcf 2> $logFile\n\n'
+        
+        'echo filtering VCF complete >> $logFile\n'
+    )
+
+    write_wrapper(
+        filepath=os.path.join(kwargs.get('wrapper_dir'), app_name + '.sh'),
+        contents=wrapper.format(
+            hostname_info=hostname_info(),
+            exe_bedtools=exe_config['bedtools'],
+            ref_bed=ref_config['bed'],
+            **kwargs
+        ),
+        executable=True
+    )
+
+
 def compose_SamtoolsParseContig(app_name, **kwargs):
     """ ttt"""
 

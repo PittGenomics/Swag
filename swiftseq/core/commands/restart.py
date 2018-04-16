@@ -18,6 +18,9 @@ def populate_parser(parser):
                              'execute remaining tasks (Required).')
     parser.add_argument('--config', required=True,
                         help='The SwiftSeq config log. Contains paths to config files required by Swift (Required).')
+    parser.add_argument('--swift-path', default='swift', help='If provided, will use this path as the full path to the '
+                                                              'Swift executable; otherwise, defaults to finding Swift '
+                                                              'in PATH.')
     parser.add_argument('--heap-max', type=int, default=2500,
                             help='Java max heap size in megabytes for the Swift process '
                                  'running on the headnode (Default = 2500)')
@@ -64,7 +67,7 @@ def main(args=None):
 
     # Re-run SwiftSeq using the configs are rlog provided
     subprocess.call('{swift_exe} -resume {restart_log} -config {restart_conf} {swift_script}'.format(
-        swift_exe=restart_config['swift'],
+        swift_exe=args['swift_path'],
         restart_log=args['restart_log'],
         restart_conf=restart_config['conf'],
         swift_script=restart_config['swiftScript']

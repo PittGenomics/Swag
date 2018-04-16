@@ -3,7 +3,27 @@ The modules and classes in swiftseq.core have to do with the core SwiftSeq funct
 and manipulating user input and passing necessary information to the various functions that output swift code, then
 running the actual SwiftSeq run.
 """
+import os
+import subprocess
 from copy import copy
+
+conda_install_packages = [
+    'samtools',
+    'bcftools',
+    'gatk',
+    'bamutil',
+    'picard',
+    'bedtools',
+    'delly',
+    'snpeff',
+    'bwa',
+    'platypus-variant',
+    'scalpel',
+    'varscan',
+    'strelka',
+    'java-jdk',
+    'python=2.7'
+]
 
 
 class SwiftSeqStrings(object):
@@ -49,11 +69,11 @@ class SwiftSeqStrings(object):
     # Strings for setuptools
     setup_name = 'SwiftSeq'
     setup_version = '1.0.1'
-    setup_description = 'TODO'
-    setup_license = 'TODO'
+    setup_description = 'SwiftSeq Parallel Genomics Workflow'
+    setup_license = 'Apache Software License'
     setup_author = 'Jason Pitt'
-    setup_author_email = 'TODO'
-    setup_url = 'TODO'
+    setup_author_email = 'jason.j.pitt@gmail.com'
+    setup_url = 'https://github.com/PittGenomics/SwiftSeq'
 
 
 class SwiftSeqWorkflowValidation(object):
@@ -103,7 +123,45 @@ class SwiftSeqWorkflowValidation(object):
         }
 
 
+def install_novosort_license(conda_bin_dir, **kwargs):
+    if kwargs.get('novo_license_path'):
+        subprocess.call([
+            os.path.join(conda_bin_dir, 'bin', 'novoalign-license-register'),
+            kwargs.get('novo_license_path')
+        ])
+
 class SwiftSeqSupported(object):
+    # Possible keys:
+    #    - bioconda_tag: bioconda name and optional version number, fed directly to bioconda
+    #    - exe_name: filename of the executable or jar file or whatever is executed
+    #    - rel_path: relative path from the conda environment root, not including the name of the executable
+    #                or jar file or whatever; defaults to 'bin'
+    conda_install_packages = [
+        {'bioconda_tag': 'samtools=1.6', 'exe_name': 'samtools'},
+        {'bioconda_tag': 'bcftools=1.6', 'exe_name': 'bcftools'},
+        {'bioconda_tag': 'gatk4=4.0b6', 'exe_name': 'gatk-package-4.beta.6-local.jar', 'rel_path': 'share/gatk4-4.0b6-0'},
+        {'bioconda_tag': 'bamutil=1.0.14', 'exe_name': 'bam'},
+        {'bioconda_tag': 'picard=2.15', 'exe_name': 'picard.jar', 'rel_path': 'share/picard-2.15.0-0'},
+        {'bioconda_tag': 'bedtools=2.27.1', 'exe_name': 'bedtools'},
+        {'bioconda_tag': 'sambamba=0.6.6', 'exe_name': 'sambamba'},
+        {'bioconda_tag': 'java-jdk=8.0.112', 'exe_name': 'java'},
+        {'bioconda_tag': 'delly=0.7.7', 'exe_name': 'delly'},
+        {'bioconda_tag': 'snpeff=4.3.1r', 'exe_name': 'snpEff.jar', 'rel_path': 'share/snpeff-4.3.1r-0'},
+        {'bioconda_tag': 'bwa=0.7.17', 'exe_name': 'bwa'},
+        {'bioconda_tag': 'platypus-variant=0.8.1.1', 'exe_name': 'Platypus.py',
+         'rel_path': 'share/platypus-variant-0.8.1.1-0'},
+        {'bioconda_tag': 'scalpel=0.5.3', 'exe_name': 'scalpel-discovery'},
+        {'bioconda_tag': 'varscan=2.4.3', 'exe_name': 'VarScan.jar', 'rel_path': 'share/varscan-2.4.3-0'},
+        {'bioconda_tag': 'strelka=2.8.4', 'exe_name': 'configureStrelkaSomaticWorkflow.py'},
+        {'bioconda_tag': 'python=2.7.13', 'exe_name': 'python'},
+        {
+            'bioconda_tag': 'novoalign=3.07.00',
+            'exe_key': ['novoalign', 'novosort'],
+            'exe_name': ['novoalign', 'novosort'],
+            'post_hook': install_novosort_license
+        }
+    ]
+
     _supported = {
         'programs': {
             'gatk_post-processing': {'GatkIndelRealignment', 'GatkBqsr'},
@@ -299,8 +357,7 @@ class SwiftSeqApps(object):
         'ContigMergeSort': {
             'name': 'ContigMergeSort',
             'exclusion': None,
-
-                            'walltime': '24:00:00', 'pool': 'one'}
+            'walltime': '24:00:00', 'pool': 'one'}
         }
 
     @classmethod

@@ -68,7 +68,7 @@ class SwiftSeqStrings(object):
 
     # Strings for setuptools
     setup_name = 'SwiftSeq'
-    setup_version = '1.0.1'
+    setup_version = '1.0.2'
     setup_description = 'SwiftSeq Parallel Genomics Workflow'
     setup_license = 'Apache Software License'
     setup_author = 'Jason Pitt'

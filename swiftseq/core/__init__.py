@@ -159,7 +159,8 @@ class SwiftSeqSupported(object):
             'exe_key': ['novoalign', 'novosort'],
             'exe_name': ['novoalign', 'novosort'],
             'post_hook': install_novosort_license
-        }
+        },
+        {'bioconda_tag': 'bowtie2=2.3.4.1', 'exe_name': 'bowtie2'}
     ]
 
     _supported = {

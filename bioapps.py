@@ -23,28 +23,35 @@ _AppPaths = { 'BwaMem' : 'echo',
               'IndexBam' : 'echo'
           }
 
-@App('bash', dfk)
+@App('bash', dfk, cache=True)
 def Mosaik(f_inbam=None, f_readGroupStr=None, sampleID=None, d_dir=None,
+           wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
            outputs=[], stdout=None, stderr=None, mock=False):
     '''
     outputs = [file logFile, file outBam, file outBamBai]
     '''
     if mock == True:
-        return 'echo "Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}"';
+        return 'echo "export PATH={wrapperDir}:$PATH; Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}"';
     else:
-        return 'Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}';
+        return '''export PATH={wrapperDir}:$PATH; 
+        Mosaik {f_inbam} {outputs[1]} {outputs[0]} {sampleID} {d_dir}''';
 
 
 # bwaMem (does Bam2Fastq)
-@App('bash', dfk)
-def BwaMem(inBam, RGname, sampleID, dirpath, outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def BwaMem(inBam, RGname, sampleID, dirpath, outputs=[],
+           wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+           stdout=None, stderr=None, mock=False):
     if mock == True:
-        return 'echo /share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+        return 'echo "export PATH={wrapperDir}:$PATH; BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};"'
     else:
-        return '/share/swiftseq/run/wrappers/BwaMem.sh {0} {outputs[0]} {1} {outputs[1]} {2} {3};'
+        return '''export PATH={wrapperDir}:$PATH;
+        BwaMem.sh {0} {outputs[0]} {1} {outputs[2]} {2} {3};'''
 
-@App('bash', dfk)
-def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[],
+                 wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+                 stdout=None, stderr=None, mock=False):
     '''
     inputs : RGalnBams
     outputs : [alnSampleContigBamFile, alnSampleBamLog, alnSampleContigBams....]
@@ -52,41 +59,51 @@ def RgMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=N
 
     inBams = ' '.join([i.filename for i in inputs])
     if mock == True:
-        return 'echo /share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
+        return 'echo "export PATH={wrapperDir}:$PATH; RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s "' % inBams
     else:
-        return '/share/swiftseq/run/wrappers/RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ' % inBams
+        return '''export PATH={wrapperDir}:$PATH; 
+        RgMergeSort.sh {outputs[0]} {outputs[1]} {0} %s ''' % inBams
 
-@App('bash', dfk)
-def PicardMarkDuplicates (inBam, sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def PicardMarkDuplicates (inBam, sampleID, dirpath, inputs=[], outputs=[],
+                          wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+                          stdout=None, stderr=None, mock=False):
     '''
     outputs = [file logFile, file outBam, file outBamMetrics]
     '''
     if mock == True:
-        return 'echo "/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}"'
+        return 'echo "export PATH={wrapperDir}:$PATH; PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}"'
     else:
-        return '/share/swiftseq/run/wrappers/PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}'
+        return '''export PATH={wrapperDir}:$PATH; 
+        PicardMarkDuplicates.sh {0} {outputs[1]} {outputs[0]} {outputs[2]} {1} {2}'''
 
 
 
-@App('bash', dfk)
-def PlatypusGerm (inBam,inBamIndex, sampleID, dirpath, coords, outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def PlatypusGerm (inBam,inBamIndex, sampleID, dirpath, coords, outputs=[],
+                  wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+                  stdout=None, stderr=None, mock=False):
     '''
     outputs = [file logFile, file outVcf]
     '''
     if mock == True:
-        return 'echo "/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};"'
+        return 'echo "export PATH={wrapperDir}:$PATH; PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};"'
     else:
-        return '/share/swiftseq/run/wrappers/PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4};'
+        return '''export PATH={wrapperDir}:$PATH;
+        PlatypusGerm.sh {0} {1} {outputs[1]} {outputs[0]} {2} {3} {4}; '''
 
-@App('bash', dfk)
-def IndexBam (inBam, outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def IndexBam (inBam, outputs=[], stdout=None, stderr=None,
+              wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+              mock=False):
     '''
     outputs = [file logFile, file outIndex]
     '''
     if mock == True:
-        return 'echo "/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};"'
+        return 'echo "export PATH={wrapperDir}:$PATH; IndexBam.sh {0} {outputs[1]} {outputs[0]};"'
     else:
-        return '/share/swiftseq/run/wrappers/IndexBam.sh {0} {outputs[1]} {outputs[0]};'
+        return '''export PATH={wrapperDir}:$PATH; 
+        IndexBam.sh {0} {outputs[1]} {outputs[0]};'''
 
 '''
 ### mergeSort for scatter-gathered contigs
@@ -95,30 +112,34 @@ ContigMergeSort filename(outBam) filename(logFile) sampleID dir filenames(inBams
 }
 '''
 
-@App('bash', dfk)
-def ContigMergeSort (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def ContigMergeSort (sampleID, dirpath, inputs=[], outputs=[],
+                     wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+                     stdout=None, stderr=None, mock=False):
     '''
     outputs = [file logFile, file outBam, file outBamBai]
     '''
 
-    inBams = ' '.join([i.filename for i in inputs])
+    inBams = ' '.join(inputs)
 
     if mock == True:
-        return '''echo "/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
+        return '''echo "export PATH={wrapperDir}:$PATH; ContigMergeSort.sh {outputs[1]}  \
         {outputs[0]} \
         {0} \
         {1} \
         %s "''' % inBams
 
     else:
-        return '''/share/swiftseq/run/wrappers/ContigMergeSort.sh {outputs[1]}  \
+        return '''export PATH={wrapperDir}:$PATH; ContigMergeSort.sh {outputs[1]}  \
         {outputs[0]} \
         {0} \
         {1} \
         %s ''' % inBams
 
-@App('bash', dfk)
-def ConcatVcf (sampleID, dirpath, inputs=[], outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def ConcatVcf (sampleID, dirpath, inputs=[], outputs=[],
+               wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+               stdout=None, stderr=None, mock=False):
     '''
 ### concat vcf files
 app (file logFile, file outVcf) ConcatVcf (file [auto] vcfFiles, string sampleID, string dir) {
@@ -130,7 +151,7 @@ app (file logFile, file outVcf) ConcatVcf (file [auto] vcfFiles, string sampleID
     vcfs = ' '.join([i.filename for i in inputs])
 
     if mock == True:
-        return '''echo "/share/swiftseq/run/wrappers/ConcatVcf.sh {outputs[1]} \
+        return '''echo "export PATH={wrapperDir}:$PATH; ConcatVcf.sh {outputs[1]} \
         {outputs[0]} \
         {0} \
         {1} \
@@ -138,50 +159,53 @@ app (file logFile, file outVcf) ConcatVcf (file [auto] vcfFiles, string sampleID
         ''' % vcfs
 
     else:
-        return '''/share/swiftseq/run/wrappers/ConcatVcf.sh {outputs[1]} \
+        return '''export PATH={wrapperDir}:$PATH; ConcatVcf.sh {outputs[1]} \
         {outputs[0]} \
         {0} \
         {1} \
         %s
         ''' % vcfs
 
-@App('bash', dfk)
-def SamtoolsFlagstat (genoMergeBam, sampleID, sampleDir, outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def SamtoolsFlagstat (genoMergeBam, sampleID, sampleDir, outputs=[],
+                      wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+                      stdout=None, stderr=None, mock=False):
     '''
     outputs = [file flagstatLog, file flagstat]
     SamtoolsFlagstat filename(inBam) filename(outStats) filename(logFile) sampleID dir;
     '''
 
     if mock == True:
-        return '''echo "/share/swiftseq/run/wrappers/SamtoolsFlagstat.sh {0} {outputs[1]} \
+        return '''echo "export PATH={wrapperDir}:$PATH; SamtoolsFlagstat.sh {0} {outputs[1]} \
         {outputs[0]} \
         {1} \
         {2}"'''
 
     else:
-        return '''/share/swiftseq/run/wrappers/SamtoolsFlagstat.sh {0} {outputs[1]} \
+        return '''export PATH={wrapperDir}:$PATH; SamtoolsFlagstat.sh {0} {outputs[1]} \
         {outputs[0]} \
         {1} \
         {2}'''
 
-@App('bash', dfk)
-def BamutilPerBaseCoverage(genoMergeBam, sampleID, sampleDir, outputs=[], stdout=None, stderr=None, mock=False):
+@App('bash', dfk, cache=True)
+def BamutilPerBaseCoverage(genoMergeBam, sampleID, sampleDir, outputs=[],
+                           wrapperDir="/home/ubuntu/SwiftSeq/test_run/wrapper",
+                           stdout=None, stderr=None, mock=False):
     '''
     outputs = [file flagstatLog, file flagstat]
     BamutilPerBaseCoverage filename(inBam) filename(outCov) filename(logFile) sampleID dir;
     '''
 
     if mock == True:
-        return '''echo "/share/swiftseq/run/wrappers/BamutilPerBaseCoverage.sh {0} {outputs[1]} \
+        return '''echo "export PATH={wrapperDir}:$PATH; BamutilPerBaseCoverage.sh {0} {outputs[1]} \
         {outputs[0]} \
         {1} \
         {2}"'''
 
     else:
-        return '''echo "/share/swiftseq/run/wrappers/BamutilPerBaseCoverage.sh {0} {outputs[1]} \
-        {outputs[0]} \
-        {1} \
-        {2}"'''
+        return '''echo "export PATH={wrapperDir}:$PATH; BamutilPerBaseCoverage.sh {0} {outputs[1]} {outputs[0]} {1} {2}"
+export PATH={wrapperDir}:$PATH; BamutilPerBaseCoverage.sh {0} {outputs[1]} {outputs[0]} {1} {2}
+'''
 
 
 

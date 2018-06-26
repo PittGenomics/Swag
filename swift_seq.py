@@ -77,15 +77,15 @@ def BwaMem (sample, sampleRG, inBam, mock=False):
    RGalnBai  =  "{0}/{1}.aln.bam.bai".format(sample['dir'], RGID)
    RGalnLog  =  "{0}/{1}.aln.log".format(sample['dir'], RGID)
          
-   fu_app, fu_data = bio.BwaMem (inBam, RGname, RGID, sample['dir'], 
-                                 outputs=[RGalnBam, RGalnBai, RGalnLog],
-                                 stdout='{0}.out.txt'.format(RGID), 
-                                 stderr='{0}.err.txt'.format(RGID),
-                                 mock=mock
-                                 )
+   fu_app = bio.BwaMem (inBam, RGname, RGID, sample['dir'], 
+                        outputs=[RGalnBam, RGalnBai, RGalnLog],
+                        stdout='{0}.out.txt'.format(RGID), 
+                        stderr='{0}.err.txt'.format(RGID),
+                        mock=mock
+   )
 
    # Return the app future and the datafuture for the bam file
-   return fu_app, fu_data[0]
+   return fu_app, fu_app.outputs[0]
    
 def RgMergeSort (sample, RGalnBams, mock=False):
    ''' RgMergeSort : Convenience function that constructs arguments and params for the call to the app 
@@ -108,12 +108,12 @@ def RgMergeSort (sample, RGalnBams, mock=False):
    #print("alnSampleContigBams[0] :", alnSampleContigBams[0])
    alnSampleBamLog = "{0}/{1}.RGmerge.log".format(sample['dir'], sample['ID'])
       
-   app_fu, data_fus = bio.RgMergeSort (sample['ID'], sample['dir'], inputs=RGalnBams,
-                                       outputs=[alnSampleContigBamFile,
-                                                alnSampleBamLog] + alnSampleContigBams,
-                                       mock=mock)
+   app_fu  = bio.RgMergeSort (sample['ID'], sample['dir'], inputs=RGalnBams,
+                              outputs=[alnSampleContigBamFile,
+                                       alnSampleBamLog] + alnSampleContigBams,
+                              mock=mock)
 
-   return app_fu, data_fus
+   return app_fu, app_fu.outputs
 
 
 def PicardMarkDuplicates (inBam, sample, contigName, mock=False):
@@ -129,15 +129,15 @@ def PicardMarkDuplicates (inBam, sample, contigName, mock=False):
    contigDupBam = "{0}/{1}.contig.dup.bam".format(sample['dir'], contigID)
    contigDupMetrics = "{0}/{1}.contig.dup.metrics".format(sample['dir'], contigID)
    
-   app_fu, data_fus = bio.PicardMarkDuplicates (inBam,
-                                                contigID,
-                                                sample['dir'],
-                                                outputs=[contigDupLog,
-                                                         contigDupBam,
-                                                         contigDupMetrics],
-                                                mock=mock)
+   app_fu = bio.PicardMarkDuplicates (inBam,
+                                      contigID,
+                                      sample['dir'],
+                                      outputs=[contigDupLog,
+                                               contigDupBam,
+                                               contigDupMetrics],
+                                      mock=mock)
 
-   return app_fu, data_fus
+   return app_fu, app_fu.outputs
 
 
 def IndexBam (contigDupBam, mock=False):
@@ -150,9 +150,9 @@ def IndexBam (contigDupBam, mock=False):
    contigDupBamBai = "{0}.bai".format(contigIndexStr)
    contigDupBamBaiLog = "{0}.bai.log".format(contigIndexStr)
 
-   app_fu, data_fus = bio.IndexBam(contigDupBam, outputs=[contigDupBamBaiLog,
-                                                          contigDupBamBai])
-   return app_fu, data_fus
+   app_fu = bio.IndexBam(contigDupBam, outputs=[contigDupBamBaiLog,
+                                                contigDupBamBai])
+   return app_fu, app_fu.outputs
 
 
 def PlatypusGerm (contigName, contigSegment, sample, contigDupBam, contigDupBamBai, mock=False):
@@ -168,16 +168,16 @@ def PlatypusGerm (contigName, contigSegment, sample, contigDupBam, contigDupBamB
    
    PlatypusGermContigVcf = "{0}/{1}{2}.PlatypusGerm.vcf".format(sample["dir"], contigID, segmentSuffix)
    PlatypusGermContigVcfLog = "{0}/{1}{2}.PlatypusGerm.log".format(sample["dir"], contigID, segmentSuffix)
-   app_fu, data_fus = bio.PlatypusGerm (contigDupBam,
-                                        contigDupBamBai,
-                                        contigID,
-                                        sample['dir'],
-                                        coords,
-                                        outputs=[PlatypusGermContigVcfLog,
-                                                 PlatypusGermContigVcf],
-                                        mock=mock)
+   app_fu = bio.PlatypusGerm (contigDupBam,
+                              contigDupBamBai,
+                              contigID,
+                              sample['dir'],
+                              coords,
+                              outputs=[PlatypusGermContigVcfLog,
+                                       PlatypusGermContigVcf],
+                              mock=mock)
    
-   return app_fu, data_fus
+   return app_fu, app_fu.outputs
    
 def BamutilPerBaseCoverage (genoMergeBam, sample, mock=False):
    ''' BamutilPerBaseCoverage : Convenience function that wraps BamutilPerBaseCoverage
@@ -192,13 +192,15 @@ def BamutilPerBaseCoverage (genoMergeBam, sample, mock=False):
    # Per base coverage on the geno-ready aligned bam (genoMergeBam)
    perBaseCoverageLog = "{0}/{1}.bam.perBaseCoverage.log".format(sample['dir'], sample['ID'])
    perBaseCoverage = "{0}/{1}.bam.perBaseCoverage".format(sample['dir'],sample['ID'])
-   app_fu, data_fus = bio.BamutilPerBaseCoverage (genoMergeBam,
-                                                  sample['ID'],
-                                                  sample['dir'],
-                                                  outputs=[perBaseCoverageLog,perBaseCoverage],
-                                                  mock=mock)
+   app_fu = bio.BamutilPerBaseCoverage (genoMergeBam,
+                                        sample['ID'],
+                                        sample['dir'],
+                                        stdout="BamUtils.stdout",
+                                        stderr="BamUtils.stderr",
+                                        outputs=[perBaseCoverageLog,perBaseCoverage],
+                                        mock=mock)
  
-   return app_fu, data_fus
+   return app_fu, app_fu.outputs
 
 
 def SamtoolsFlagstat (genoMergeBam, sample, mock=False):
@@ -215,13 +217,15 @@ def SamtoolsFlagstat (genoMergeBam, sample, mock=False):
    
    # Flagstat on the geno-ready aligned bam (genoMergeBam)
    flagstatLog = "{0}/{1}.bam.flagstat.log".format(sample['dir'], sample['ID'])
-   flagstat = "{0}/{1}.bam.flagstat ".format(sample['dir'], sample['ID'])
-   app_fu, data_fus = bio.SamtoolsFlagstat (genoMergeBam,
-                                            sample['ID'],
-                                            sample['dir'],
-                                            outputs=[flagstatLog,flagstat],
-                                            mock=mock)
-   return app_fu, data_fus
+   flagstat = "{0}/{1}.bam.flagstat".format(sample['dir'], sample['ID'])
+   app_fu = bio.SamtoolsFlagstat (genoMergeBam,
+                                  sample['ID'],
+                                  sample['dir'],
+                                  stdout="Samtools.stdout",
+                                  stderr="Samtools.stderr",
+                                  outputs=[flagstatLog,flagstat],
+                                  mock=mock)
+   return app_fu, app_fu.outputs
 
       
 def ConcatVcf (PlatypusGermContigVcfs, sample, mock=False):
@@ -235,13 +239,13 @@ def ConcatVcf (PlatypusGermContigVcfs, sample, mock=False):
    PlatypusGermMergedVcf = "{0}/{1}.merged.PlatypusGerm.vcf".format(sample['dir'],sample['ID'])
    PlatypusGermMergedVcfLog = "{0}/{1}..merged.PlatypusGerm.log".format(sample['dir'],sample['ID'])
 
-   app_fu, data_fus = bio.ConcatVcf(sample['ID'],
-                                    sample['dir'],
-                                    inputs=PlatypusGermContigVcfs,
-                                    outputs=[PlatypusGermMergedVcfLog,
-                                             PlatypusGermMergedVcf],
-                                    mock=mock)
-   return app_fu, data_fus
+   app_fu = bio.ConcatVcf(sample['ID'],
+                          sample['dir'],
+                          inputs=PlatypusGermContigVcfs,
+                          outputs=[PlatypusGermMergedVcfLog,
+                                   PlatypusGermMergedVcf],
+                          mock=mock)
+   return app_fu, app_fu.outputs
 
 
       
@@ -255,16 +259,21 @@ def ContigMergeSort (contigBams, sample, mock=False):
    genoMergeBamIndex = "{0}/{1}.geno.merged.bam.bai".format(sample['dir'],sample['ID'])
    genoMergeBam = "{0}/{1}.geno.merged.bam".format(sample['dir'],sample['ID'])
    genoMergeLog = "{0}/{1}.geno.merged.log".format(sample['dir'],sample['ID'])
+
+   print("="*50)
+   print("contigBams filepaths : ", [v.filepath for v in contigBams.values()])
+   print("contigBams results : ", [v.result() for v in contigBams.values()])
+   print("="*50)
    
-   app_fu, data_fus = bio.ContigMergeSort (sample['ID'],
-                                           sample['dir'],
-                                           inputs=contigBams.values(),
-                                           outputs=[genoMergeLog,
-                                                    genoMergeBam,
-                                                    genoMergeBamIndex],
-                                           mock=mock)
+   app_fu = bio.ContigMergeSort (sample['ID'],
+                                 sample['dir'],
+                                 inputs=contigBams.values(),
+                                 outputs=[genoMergeLog,
+                                          genoMergeBam,
+                                          genoMergeBamIndex],
+                                 mock=mock)
                                            
-   return app_fu, data_fus
+   return app_fu, app_fu.outputs
 
 
 
@@ -295,7 +304,8 @@ def run_all(samples, genomeContigs, mock=False):
          fu_app, fu_bam = BwaMem(sample, sampleRG, inBam, mock=mock)
          # Map realigned file to an array
          RGalnBams.extend([fu_bam])
-
+         print("Wait for the result of BWaMem : ", fu_bam.result())
+         
       # Debugging
       for bam in RGalnBams:
          print("Waiting on bam file from BwaMem : ", bam.filepath)
@@ -321,9 +331,11 @@ def run_all(samples, genomeContigs, mock=False):
                                                             sample, 
                                                             contigName,
                                                             mock=mock)
+         print("Wait for picardMarkDuplicates : ", picard_fu.result())
          _, contigDupBam, _ = picard_data_fus
 
-         ref_path = "/share/swiftseq/run/analysis/Reference/contig_segments_{0}.txt"
+         ref_path = "/home/ubuntu/SwiftSeq/test_run/analysis/Reference/contig_segments_{0}.txt"
+         print("HARDCODED REF_PATH: {}".format(ref_path))
          contigSegments = readData(ref_path.format(contigName))
 
          index_fu, index_data_fus = IndexBam (contigDupBam, mock=mock)
@@ -341,19 +353,28 @@ def run_all(samples, genomeContigs, mock=False):
          contigBams[contigName] = contigDupBam;
          contigBamsIndex[contigName] = contigDupBamBai;
 
-      # End of contig loop      
+      # End of contig loop
+      print("ContigMergeSort contigBams : ", contigBams)
+      print("ContigMergeSort sample : ", sample)
       cms_fu, cms_data_fu = ContigMergeSort (contigBams, sample, mock=mock)
+      print("CMS_Fu :", cms_fu.result())
+      print("CMS_data : ", cms_data_fu)
       
       concat_fu, concat_data_fu = ConcatVcf (PlatypusGermContigVcfs, sample, mock=mock)
-
+      print("Concat_fu :", concat_fu.result())
+      print("Concat data :", concat_data_fu)
+      
       sf_fu, sf_data_fu = SamtoolsFlagstat (cms_data_fu[1], sample, mock=mock)
-
+      print("sf_fu :", sf_fu.result())
+      print("sf_data_fu", sf_data_fu)
+      
       bbc_fu, bbc_data_fu = BamutilPerBaseCoverage (cms_data_fu[1], sample, mock=mock);
+      print("bbc_fu :", bbc_fu.result())
+      print("bbc_data : ", bbc_data_fu)
+      
    # End of sample loop
 
    print("DEBUG : Waiting on end of RGalnBams results")
-   return
-   # Done
    for item in RGalnBams:
       print(item.result())
 

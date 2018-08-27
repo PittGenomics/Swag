@@ -167,7 +167,7 @@ class SwiftSeqSupported(object):
     _supported = {
         'programs': {
             # 'gatk_post-processing': {'GatkIndelRealignment', 'GatkBqsr'},
-            'aligner': {'Bowtie2', 'BWAmem', 'novoalign'},
+            'aligner': {'Bowtie2', 'BwaMem', 'novoalign'},
             # 'aligner': {'BwaAln', 'BwaMem', 'Bowtie2'},  OLD
             # 'genotyper': {
             #     'PlatypusPaired', 'PlatypusGerm', 'HaplotypeCaller', 'Mutect',

@@ -126,8 +126,8 @@ class Workflow(object):
         self.validate()
 
         # Get workflow specifics - error checking will be performed
-        self.run_type = workflow_config['runType']
-        self.data_type = workflow_config['dataType']
+        self.run_type = workflow_config['run_type']
+        self.data_type = workflow_config['data_type']
 
         # These will be empty if either aren't present
         self.genotypers = get_specified_programs(workflow_config, 'genotyper')

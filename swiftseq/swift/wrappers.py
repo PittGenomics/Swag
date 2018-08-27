@@ -1145,7 +1145,7 @@ def compose_BwaAln(app_name, **kwargs):
         '# the # in -o will get replaced by _1 and _2\n'
         '{exe_bam2fastq} --force -o ${{ID}}#.fastq $inBam >> $logFile 2>&1\n\n'
         
-        '\treadGroup=$(sed "s: :\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
+        '\treadGroup=$(sed "s: :\\\\t:g" $readGroupStr) # NEEDS TO BE TESTED\n\n'
         
         '### Checks for PE output... will align SE vs PE accordingly\n'
         'alignPrefix=${{ID}}.bwa.tmp\n'
@@ -1376,7 +1376,7 @@ def compose_BwaMem(app_name, **kwargs):
         
         '# Get read group string... could make this cleaner\n'
         'readGroup=$({exe_samtools} view -H $inBam 2>> $logFile | grep "@RG"| grep $RGname | '
-            'sed "s:\t:\\t:g" | sed "s:\t:\\t:g")\n\n'
+            'sed "s:\\\t:\\t:g" | sed "s:\\t:\\\\\\\\t:g")\n\n'
         
         'echo Read group: $RGname >> $logFile\n\n'
         '# Will default to PE... is wc -l > 0 then a PE run will be initiated\n'

@@ -31,6 +31,12 @@ def execute_from_command_line():
         module.populate_parser(subp)
 
     args = parser.parse_args()
+
+    # If no subcommand is given, print help and exit
+    if not hasattr(args, 'func'):
+        parser.print_help()
+        sys.exit()
+
     try:
         args.func(vars(args))
     except Exception as e:

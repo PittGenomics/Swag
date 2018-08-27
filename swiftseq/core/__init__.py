@@ -68,7 +68,7 @@ class SwiftSeqStrings(object):
 
     # Strings for setuptools
     setup_name = 'SwiftSeq'
-    setup_version = '1.0.2'
+    setup_version = '1.0.3'
     setup_description = 'SwiftSeq Parallel Genomics Workflow'
     setup_license = 'Apache Software License'
     setup_author = 'Jason Pitt'
@@ -88,16 +88,16 @@ class SwiftSeqWorkflowValidation(object):
         # Contraints for specific workflow steps
         # TODO Connect specific step names with SwiftSeqSupported so edits only happen in one place
         steps_schema['aligner'].update({'minlength': 1, 'maxlength': 1})
-        steps_schema['duplicate_removal'].update({'minlength': 1, 'maxlength': 1})
-        steps_schema['gatk_post-processing'].update({'minlength': 2, 'maxlength': 2})
+        steps_schema['duplicate_marking'].update({'minlength': 1, 'maxlength': 1})
+        # steps_schema['gatk_post-processing'].update({'minlength': 2, 'maxlength': 2})
 
         workflow_schema = {
-            'dataType': {
+            'data_type': {
                 'type': 'string',
                 'allowed': list(SwiftSeqSupported.types('data')),
                 'required': True
             },
-            'runType': {
+            'run_type': {
                 'type': 'string',
                 'allowed': list(SwiftSeqSupported.types('run')),
                 'required': True
@@ -130,6 +130,7 @@ def install_novosort_license(conda_bin_dir, **kwargs):
             kwargs.get('novo_license_path')
         ])
 
+
 class SwiftSeqSupported(object):
     # Possible keys:
     #    - bioconda_tag: bioconda name and optional version number, fed directly to bioconda
@@ -139,19 +140,19 @@ class SwiftSeqSupported(object):
     conda_install_packages = [
         {'bioconda_tag': 'samtools=1.6', 'exe_name': 'samtools'},
         {'bioconda_tag': 'bcftools=1.6', 'exe_name': 'bcftools'},
-        {'bioconda_tag': 'gatk4=4.0b6', 'exe_name': 'gatk-package-4.beta.6-local.jar', 'rel_path': 'share/gatk4-4.0b6-0'},
+        {'bioconda_tag': 'gatk4=4.0b6', 'exe_name': 'gatk-package-4.beta.6-local.jar', 'rel_path': 'share/gatk4-4.0b6-*'},
         {'bioconda_tag': 'bamutil=1.0.14', 'exe_name': 'bam'},
-        {'bioconda_tag': 'picard=2.15', 'exe_name': 'picard.jar', 'rel_path': 'share/picard-2.15.0-0'},
+        {'bioconda_tag': 'picard=2.15', 'exe_name': 'picard.jar', 'rel_path': 'share/picard-2.15.0-*'},
         {'bioconda_tag': 'bedtools=2.27.1', 'exe_name': 'bedtools'},
         {'bioconda_tag': 'sambamba=0.6.6', 'exe_name': 'sambamba'},
         {'bioconda_tag': 'java-jdk=8.0.112', 'exe_name': 'java'},
         {'bioconda_tag': 'delly=0.7.7', 'exe_name': 'delly'},
-        {'bioconda_tag': 'snpeff=4.3.1r', 'exe_name': 'snpEff.jar', 'rel_path': 'share/snpeff-4.3.1r-0'},
+        {'bioconda_tag': 'snpeff=4.3.1r', 'exe_name': 'snpEff.jar', 'rel_path': 'share/snpeff-4.3.1r-*'},
         {'bioconda_tag': 'bwa=0.7.17', 'exe_name': 'bwa'},
         {'bioconda_tag': 'platypus-variant=0.8.1.1', 'exe_name': 'Platypus.py',
-         'rel_path': 'share/platypus-variant-0.8.1.1-0'},
+         'rel_path': 'share/platypus-variant-0.8.1.1-*'},
         {'bioconda_tag': 'scalpel=0.5.3', 'exe_name': 'scalpel-discovery'},
-        {'bioconda_tag': 'varscan=2.4.3', 'exe_name': 'VarScan.jar', 'rel_path': 'share/varscan-2.4.3-0'},
+        {'bioconda_tag': 'varscan=2.4.3', 'exe_name': 'VarScan.jar', 'rel_path': 'share/varscan-2.4.3-*'},
         {'bioconda_tag': 'strelka=2.8.4', 'exe_name': 'configureStrelkaSomaticWorkflow.py'},
         {'bioconda_tag': 'python=2.7.13', 'exe_name': 'python'},
         {
@@ -165,31 +166,41 @@ class SwiftSeqSupported(object):
 
     _supported = {
         'programs': {
-            'gatk_post-processing': {'GatkIndelRealignment', 'GatkBqsr'},
-            'aligner': {'BwaAln', 'BwaMem', 'Bowtie2'},
-            'genotyper': {
-                'PlatypusPaired', 'PlatypusGerm', 'HaplotypeCaller', 'Mutect',
-                'MpileupPaired', 'UnifiedGenotyper', 'ScalpelPaired', 'ScalpelGerm',
-                'Strelka', 'Varscan'
-            },
-            'structural_variant_caller': {'DellyGerm', 'DellyPaired', 'LumpyGerm', 'LumpyPaired'},
-            'duplicate_removal': {'PicardMarkDuplicates'},
-            'bam_quality_control': {'SamtoolsFlagstat', 'BedtoolsGenomeCoverage', 'BamutilPerBaseCoverage'},
+            # 'gatk_post-processing': {'GatkIndelRealignment', 'GatkBqsr'},
+            'aligner': {'Bowtie2', 'BWAmem', 'novoalign'},
+            # 'aligner': {'BwaAln', 'BwaMem', 'Bowtie2'},  OLD
+            # 'genotyper': {
+            #     'PlatypusPaired', 'PlatypusGerm', 'HaplotypeCaller', 'Mutect',
+            #     'MpileupPaired', 'UnifiedGenotyper', 'ScalpelPaired', 'ScalpelGerm',
+            #     'Strelka', 'Varscan'
+            # },
+            # 'structural_variant_caller': {'DellyGerm', 'DellyPaired', 'LumpyGerm', 'LumpyPaired'},
+            'duplicate_marking': {'PicardMarkDuplicates'},
+            # 'bam_quality_control': {'SamtoolsFlagstat', 'BedtoolsGenomeCoverage', 'BamutilPerBaseCoverage'},
             # This is here because java has a different way of taking command line arguments
-            'java': {'PicardMarkDuplicates'}
+            'java': {'PicardMarkDuplicates'},
+            'bam_metrics': {'genomeCoverageBed'},
+            'germline_short_variants': {'PlatypusGerm'},
+            'germline_structural_variants': {'DellyGerm'},
+            'tn_short_variants': {'Varscan', 'ScalpelPaired', 'Mutect'},
+            'tn_structural_variants': {'DellyPaired'}
         },
         'types': {
-            'run': {'processing', 'genotyping', 'processing_and_genotyping'},
-            'data': {'germline', 'tumor_normal_pair'},
+            'run': {'alignment', 'variant_calling', 'alignment_and_variant_calling'},
+            'data': {'germline', 'tumor_normal'},
             'program': {
-                'aligner', 'genotyper', 'structural_variant_caller',
-                'gatk_post-processing', 'duplicate_removal', 'bam_quality_control'
-            }
+                'aligner', 'bam_metrics', 'duplicate_marking', 'germline_short_variants',
+                'germline_structural_variants', 'tn_short_variants', 'tn_structural_variants'
+            },
+            # 'program': {    OLD
+            #     'aligner', 'genotyper', 'structural_variant_caller',
+            #     'gatk_post-processing', 'duplicate_removal', 'bam_quality_control'
+            # }
         },
         'flags': {
-            'processing_and_genotyping': (True, True),
-            'processing': (True, False),
-            'genotyping': (False, True)
+            'alignment_and_variant_calling': (True, True),
+            'alignment': (True, False),
+            'variant_calling': (False, True)
         },
         'params': {
             'program': {

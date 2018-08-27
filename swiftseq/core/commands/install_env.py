@@ -4,6 +4,7 @@ import sys
 import argparse
 import subprocess
 import re
+from glob import glob
 from datetime import datetime
 
 import six
@@ -103,7 +104,16 @@ def main(args=None):
                 else package_config['exe_name']
             )
             for exec_key, exe_name in zip(executable_key, executable_names):
-                exe_path = os.path.join(conda_env_dir, package_config.get('rel_path', 'bin'), exe_name)
+                rel_path = package_config.get('rel_path', 'bin')
+                if '*' in rel_path:
+                    _rel = glob(os.path.join(conda_env_dir, rel_path))[0]
+                else:
+                    _rel = os.path.join(conda_env_dir, rel_path)
+                exe_path = os.path.join(_rel, exe_name)
+
+
+
+                # exe_path = os.path.join(conda_env_dir, package_config.get('rel_path', 'bin'), exe_name)
                 exe_config.write('{name}={path}\n'.format(name=exec_key, path=exe_path))
 
             if 'post_hook' in package_config:

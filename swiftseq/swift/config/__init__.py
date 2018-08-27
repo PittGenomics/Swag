@@ -17,26 +17,31 @@ def create_swift_config(**kwargs):
     :param kwargs: dict Various Swift configuration parameters needed to create the config
     :return: str The path to the Swift config file
     """
+    executor = kwargs.get('executor', 'scheduler')
+    print('Creating swift config')
+    print(kwargs)
     # configHandle
     with open(SwiftSeqStrings.swift_conf_filename, 'w') as swift_conf:
-        apps_by_site = partition_apps_by_site(SwiftSeqApps.all())
-        sites = apps_by_site.keys()
+        if executor == 'local':
+            apps_by_site = partition_apps_by_site(SwiftSeqApps.all(), common_pool_name='local')
 
-        swift_conf.write('sites: [{}]\n\n'.format(', '.join(sites)))
-
-        for site_i, site in enumerate(sites):
-            host_number = str(site_i)
+            swift_conf.write('sites: [local]\n\n')
 
             site_block = SwiftConfigBlock(
-                'site.{site}'.format(site=site),
+                'site.local',
                 SwiftConfigProp('staging', 'direct', override='{key}: {val}'),
                 SwiftConfigProp('workDirectory', kwargs.get('tmp_dir')),
-                SwiftConfigProp('maxParallelTasks', 1001),
-                SwiftConfigProp('initialParallelTasks', 999),
+                SwiftConfigProp('maxParallelTasks', 1),
+                SwiftConfigProp('initialParallelTasks', 1),
 
-                get_execution_block(host_number, site, **kwargs),
+                SwiftConfigBlock(
+                    'execution',
+                    SwiftConfigProp('type', 'local'),
+                    SwiftConfigProp('URL', 'localhost')
+                ),
+
                 *get_app_blocks(
-                    apps=apps_by_site[site],
+                    apps=apps_by_site['local'],
                     wrapper_dir=kwargs.get('wrapper_dir'),
                     tmp_dir=kwargs.get('tmp_dir'),
                     apps_workflow=kwargs.get('workflow')
@@ -45,20 +50,63 @@ def create_swift_config(**kwargs):
 
             swift_conf.write(str(site_block) + '\n')
 
-        root_conf_props = [
-            SwiftConfigProp('lazyErrors', str(not kwargs.get('disable_lazy_errors')).lower(),
-                            override=SwiftConfigProp.NO_QUOTE),
-            SwiftConfigProp('executionRetries', int(kwargs.get('retries'))),
-            SwiftConfigProp('keepSiteDir', 'true', override=SwiftConfigProp.NO_QUOTE),
-            SwiftConfigProp('logProvenance', 'false', override=SwiftConfigProp.NO_QUOTE),
-            SwiftConfigProp('statusMode', 'provider'),
-            SwiftConfigProp('providerStagingPinSwiftFiles', 'false', override=SwiftConfigProp.NO_QUOTE),
-            SwiftConfigProp('alwaysTransferWrapperLog', 'false', override=SwiftConfigProp.NO_QUOTE),
-            SwiftConfigProp('maxForeachThreads', 300),
-            SwiftConfigProp('TCPPortRange', '50000,51000')
-        ]
+            root_conf_props = [
+                SwiftConfigProp('lazyErrors', 'false',
+                                override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('executionRetries', 0),
+                SwiftConfigProp('keepSiteDir', 'true', override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('logProvenance', 'false', override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('statusMode', 'provider'),
+                SwiftConfigProp('providerStagingPinSwiftFiles', 'false', override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('alwaysTransferWrapperLog', 'true', override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('TCPPortRange', '50000,51000')
+            ]
 
-        swift_conf.write('\n'.join(map(str, root_conf_props)) + '\n')
+            swift_conf.write('\n'.join(map(str, root_conf_props)) + '\n')
+
+        elif executor == 'scheduler':
+            apps_by_site = partition_apps_by_site(SwiftSeqApps.all())
+            sites = apps_by_site.keys()
+
+            swift_conf.write('sites: [{}]\n\n'.format(', '.join(sites)))
+
+            for site_i, site in enumerate(sites):
+                host_number = str(site_i)
+
+                site_block = SwiftConfigBlock(
+                    'site.{site}'.format(site=site),
+                    SwiftConfigProp('staging', 'direct', override='{key}: {val}'),
+                    SwiftConfigProp('workDirectory', kwargs.get('tmp_dir')),
+                    SwiftConfigProp('maxParallelTasks', 1001),
+                    SwiftConfigProp('initialParallelTasks', 999),
+
+                    get_execution_block(host_number, site, **kwargs),
+                    *get_app_blocks(
+                        apps=apps_by_site[site],
+                        wrapper_dir=kwargs.get('wrapper_dir'),
+                        tmp_dir=kwargs.get('tmp_dir'),
+                        apps_workflow=kwargs.get('workflow')
+                    )
+                )
+
+                swift_conf.write(str(site_block) + '\n')
+
+            root_conf_props = [
+                SwiftConfigProp('lazyErrors', str(not kwargs.get('disable_lazy_errors')).lower(),
+                                override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('executionRetries', int(kwargs.get('retries'))),
+                SwiftConfigProp('keepSiteDir', 'true', override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('logProvenance', 'false', override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('statusMode', 'provider'),
+                SwiftConfigProp('providerStagingPinSwiftFiles', 'false', override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('alwaysTransferWrapperLog', 'false', override=SwiftConfigProp.NO_QUOTE),
+                SwiftConfigProp('maxForeachThreads', 300),
+                SwiftConfigProp('TCPPortRange', '50000,51000')
+            ]
+
+            swift_conf.write('\n'.join(map(str, root_conf_props)) + '\n')
+        else:
+            raise ValueError('executor keyword argument must be either \'local\' or \'pbs\'')
 
     return SwiftSeqStrings.swift_conf_filename
 
@@ -169,7 +217,7 @@ def parse_job_options(job_options):
     return options
 
 
-def partition_apps_by_site(apps):
+def partition_apps_by_site(apps, common_pool_name=None):
     """
     Partitions a dictionary of SwiftSeq supported apps by their pools as given in
     swiftseq.core.SwiftSeqApps
@@ -179,6 +227,6 @@ def partition_apps_by_site(apps):
     """
     apps_by_site = defaultdict(dict)
     for app_name in apps:
-        pool = apps[app_name].get('pool', SwiftSeqStrings.app_pool_default)
+        pool = common_pool_name or apps[app_name].get('pool', SwiftSeqStrings.app_pool_default)
         apps_by_site[pool][app_name] = apps[app_name]
     return apps_by_site

@@ -6,8 +6,8 @@ Written by Jason Pitt
 Modified by Dominic Fitzgerald on 24 August 2017
     Github: djf604
 
-swiftseq run [args]
-The entry point for starting a new SwiftSeq run.
+swag run [args]
+The entry point for starting a new Swag run.
 """
 from __future__ import print_function
 
@@ -21,16 +21,16 @@ from datetime import datetime
 from multiprocessing import cpu_count
 from tempfile import gettempdir
 
-import swiftseq.util
-import swiftseq.swift.wrappers
-from swiftseq.core import SwiftSeqStrings
-from swiftseq.core.input import process_samples, find_data_filepaths
-from swiftseq.core.contigs import create_contigs_files
-from swiftseq.core.exceptions import EnvironmentVariableException
-from swiftseq.core.workflow import Workflow, compose_workflow_wrappers
-from swiftseq.swift.config import create_swift_config
-from swiftseq.swift.generate import germline_swift, tumor_normal_swift
-from swiftseq.util.path import is_valid_dir, is_valid_file, is_valid_tmp_dir, mkdirs
+import swag.util
+import swag.parsl.wrappers
+from swag.core import SwagStrings
+from swag.core.input import process_samples, find_data_filepaths
+from swag.core.contigs import create_contigs_files
+from swag.core.exceptions import EnvironmentVariableException
+from swag.core.workflow import Workflow, compose_workflow_wrappers
+from swag.parsl.config import create_parsl_config
+from swag.parsl.generate import germline_parsl, tumor_normal_parsl
+from swag.util.path import is_valid_dir, is_valid_file, is_valid_tmp_dir, mkdirs
 
 FIRST = 0
 RAM_POOL_MEM = 7500
@@ -72,22 +72,22 @@ def populate_parser(parser):
     parser.add_argument('--data', required=True,
                         help='The data directory containing sequencing data to be run (Required).')
     parser.add_argument('--workflow', required=True,
-                        help='The SwiftSeq workflow (in .json format) that will be run over input data (Required).')
-    # parser.add_argument('--swift-config', default='Swift.conf',
-    #                     help='Path to a pre-made Swift configuration file. If this is given, '
+                        help='The Swag workflow (in .json format) that will be run over input data (Required).')
+    # parser.add_argument('--parsl-config', default='Parsl.conf',
+    #                     help='Path to a pre-made Parsl configuration file. If this is given, '
     #                          'all other config related parameters will be ignored.')
     parser.add_argument('--ref-config', required=True,
                         help='Configuration file that contains paths to required reference files (Required).')
     parser.add_argument('--exe-config', required=True,
                         help='Configuration file that contains paths algorithm executables (Required).')
-    # parser.add_argument('--swift-path', default='swift', help='If provided, will use this path as the full path to the '
-    #                                                           'Swift executable; otherwise, defaults to finding Swift '
+    # parser.add_argument('--parsl-path', default='parsl', help='If provided, will use this path as the full path to the '
+    #                                                           'Parsl executable; otherwise, defaults to finding Parsl '
     #                                                           'in PATH.')
-    parser.add_argument('--run-name', default='SwiftSeq_{date}_{id}'.format(
+    parser.add_argument('--run-name', default='Swag_{date}_{id}'.format(
                             date=datetime.now().strftime('%d%b%Y'),
                             id=str(uuid.uuid4())[:8]
                         ),
-                        help='The name of the run (Default = SwiftSeq_<date>_<id>).')
+                        help='The name of the run (Default = Swag_<date>_<id>).')
     """
     Check that runname is saved into restart.conf file
     """
@@ -96,9 +96,9 @@ def populate_parser(parser):
     parser.add_argument('--tmp', default=gettempdir(),
                         help='Temporary directory for this run.')
     parser.add_argument('--foreach-max', type=int, default=300,
-                        help='The maximum number of simultaneous iterations per for loop in Swift (Default = 300).')
+                        help='The maximum number of simultaneous iterations per for loop in Parsl (Default = 300).')
     parser.add_argument('--num-nodes', type=int, default=1,
-                        help='The number of worker nodes (per pool) available to SwiftSeq for processing (Required).')
+                        help='The number of worker nodes (per pool) available to Swag for processing (Required).')
     parser.add_argument('--cores-per-node', type=int, default=cpu_count(),
                         help='Number of processing cores available per '
                              'worker node (Default = <num cores on head node>).')
@@ -108,14 +108,14 @@ def populate_parser(parser):
                         help='Amount of RAM in megabytes available on each worker node (Default = 29000).')
 
     parser.add_argument('--heap-max', type=int, default=2500,
-                        help='Java max heap size in megabytes for the Swift process '
+                        help='Java max heap size in megabytes for the Parsl process '
                              'running on the headnode (Default = 2500)')
     parser.add_argument('--gc-threads', type=int, default=1,
                         help='Number of threads dedicated for parallel garbage '
-                             'collection on the Swift process (Default = 1)')
+                             'collection on the Parsl process (Default = 1)')
     parser.add_argument('--job-time', default='48:00:00',
                         help='The maximum walltime (hh:mm:ss format) for a given '
-                             'Swift coaster block i.e. the max job time (Default = 48:00:00).')
+                             'Parsl coaster block i.e. the max job time (Default = 48:00:00).')
     parser.add_argument('--max-IO', type=int, default=200,
                         help='The maximum number of IO intensive processes to run concurrently (Default = 200).')
 
@@ -124,19 +124,19 @@ def populate_parser(parser):
     parser.add_argument('--project-id',
                         help='Project ID used to submit and run jobs through a scheduler (Default = None).')
     parser.add_argument('--executor', default='scheduler', choices=['scheduler', 'local'],
-                        help='Executor for this Swift run.')
+                        help='Executor for this Parsl run.')
     parser.add_argument('--job-manager', default='local:pbs',
                         help='Software used to submit and manage jobs [pbs, slurm, sge], only used if --executor is '
                              'set to \'scheduler\'.')
     parser.add_argument('--job-options',
-                        help='String that will be provided to jobOptions portion of the swift json '
+                        help='String that will be provided to jobOptions portion of the parsl json '
                              'config file (Default = None).\nThis string should be a ; separated '
                              'list of job options.')
     parser.add_argument('--queue', help='Queue that will be used by the job-manager for '
                                         'job submissions (Default = None).')
     parser.add_argument('--disable-lazy-errors', action='store_true',
-                        help='If a task fails, prevent SwiftSeq from continuing with running the remaining '
-                             'independent tasks. For any SwiftSeq runs with >1 samples this is not recommended.')
+                        help='If a task fails, prevent Swag from continuing with running the remaining '
+                             'independent tasks. For any Swag runs with >1 samples this is not recommended.')
     parser.add_argument('--worker-use-tmp', action='store_true',
                         help='Have wrappers use /tmp on the working as temp space. Should assist in reducing '
                              'overall IO burden')
@@ -146,7 +146,7 @@ def populate_parser(parser):
 
 def main(args=None):
     if not args:
-        parser = argparse.ArgumentParser(prog='swiftseq configure')
+        parser = argparse.ArgumentParser(prog='swag configure')
         populate_parser(parser)
         args = vars(parser.parse_args())
 
@@ -165,22 +165,22 @@ def main(args=None):
             raise EnvironmentVariableException(environ_var)
 
     # Get bundles util scripts
-    util_scripts = swiftseq.util.get_util_scripts()
+    util_scripts = swag.util.get_util_scripts()
 
     # Set some environment variables for future use
     # os.environ['SWIFT_HEAP_MAX'] = '{}M'.format(args['heap_max'])
     # os.environ['COG_OPTS'] = '-XX:+UseParallelGC -XX:ParallelGCThreads={}'.format(args['gc_threads'])
 
     # Create working logging directory
-    mkdirs(os.path.join(os.getcwd(), SwiftSeqStrings.worker_logging_dir))
+    mkdirs(os.path.join(os.getcwd(), SwagStrings.worker_logging_dir))
 
     # Get current directory and parse configs
     work_dir = os.getcwd()  # Absolute path
     # work_dir = '.'  # Relative path
-    exe_config = swiftseq.util.parse_config(args['exe_config'])
-    ref_config = swiftseq.util.parse_config(args['ref_config'])
+    exe_config = swag.util.parse_config(args['exe_config'])
+    ref_config = swag.util.parse_config(args['ref_config'])
     # Makes a new dir in the current directory called 'wrappers'
-    wrapper_dir = mkdirs(os.path.join(work_dir, SwiftSeqStrings.wrapper_dir))
+    wrapper_dir = mkdirs(os.path.join(work_dir, SwagStrings.wrapper_dir))
     out_dir = 'analysis'  # TODO Allow user to change this
     mkdirs(os.path.join(work_dir, out_dir))
 
@@ -193,7 +193,7 @@ def main(args=None):
 
     # Parse Workflow
     workflow = Workflow(json.load(open(args['workflow'])))
-    swiftseq.util.message_to_screen('Executing the following workflow...', banner=True)
+    swag.util.message_to_screen('Executing the following workflow...', banner=True)
     workflow.print_workflow_config()
 
     # Compose workflow wrappers
@@ -218,7 +218,7 @@ def main(args=None):
     compose_workflow_wrappers(workflow, **workflow_wrappers_options)
 
     # Gather input files
-    swiftseq.util.message_to_screen('Gathering input files and read group information...', banner=True)
+    swag.util.message_to_screen('Gathering input files and read group information...', banner=True)
     individuals_analyzed, samples_analyzed, inputdata_symlinks = process_samples(
         inputdata_type=workflow.data_type,
         inputdata_filepaths=find_data_filepaths(args['data'], '.bam'),
@@ -231,12 +231,12 @@ def main(args=None):
     contigs_file_filepath = create_contigs_files(
         picard_ref_seq_dict=ref_config['refDict'],
         contig_interval_size=args['geno_segment_size'],
-        swiftseq_analysis_dir=out_dir,
-        swiftseq_inputdata_symlinks=inputdata_symlinks
+        swag_analysis_dir=out_dir,
+        swag_inputdata_symlinks=inputdata_symlinks
     )
 
-    # Use or compose Swift configuration
-    swift_conf_filepath = create_swift_config(**{
+    # Use or compose Parsl configuration
+    parsl_conf_filepath = create_parsl_config(**{
         'wrapper_dir': wrapper_dir,
         'tmp_dir': args['tmp'],
         'disable_lazy_errors': args['disable_lazy_errors'],
@@ -253,33 +253,33 @@ def main(args=None):
         'executor': args['executor']
     })
 
-    # Compose Swift script based on run type, output information to user
+    # Compose Parsl script based on run type, output information to user
     if workflow.data_type == Workflow.GERMLINE:
-        swiftseq.util.message_to_screen('Number of samples analyzed: {}\n'.format(samples_analyzed))
-        swift_script = germline_swift(workflow, work_dir, contigs_file_filepath, out_dir)
+        swag.util.message_to_screen('Number of samples analyzed: {}\n'.format(samples_analyzed))
+        parsl_script = germline_parsl(workflow, work_dir, contigs_file_filepath, out_dir)
     else:
-        swiftseq.util.message_to_screen('Number of individuals to be analyzed: {}\n'.format(individuals_analyzed))
-        swiftseq.util.message_to_screen(
+        swag.util.message_to_screen('Number of individuals to be analyzed: {}\n'.format(individuals_analyzed))
+        swag.util.message_to_screen(
             'Number of samples (cancer and non-cancer) to be analyzed: {}\n'.format(samples_analyzed)
         )
-        swift_script = tumor_normal_swift(workflow, work_dir, contigs_file_filepath, out_dir)
+        parsl_script = tumor_normal_parsl(workflow, work_dir, contigs_file_filepath, out_dir)
 
     # Write restart config file
-    # with open(SwiftSeqStrings.restart_conf_filename, 'w') as restart_conf:
+    # with open(SwagStrings.restart_conf_filename, 'w') as restart_conf:
     #     restart_conf.write('\n'.join((
-    #         'swift={}'.format(args['swift_path']),
-    #         'conf={}'.format(swift_conf_filepath),
-    #         'swiftScript={}'.format(swift_script),
+    #         'parsl={}'.format(args['parsl_path']),
+    #         'conf={}'.format(parsl_conf_filepath),
+    #         'parslScript={}'.format(parsl_script),
     #         'SWIFT_HOME={}'.format(os.environ['SWIFT_HOME']),
     #         'SWIFT_USERHOME={}'.format(os.environ['SWIFT_USERHOME'])
     #     )) + '\n')
 
-    # Execute swift command
+    # Execute parsl command
     # TODO See if we can execute this not as a direct shell, for security reasons
-    # subprocess.call('{swift_exe} -config {swift_config} {swift_script}'.format(
-    #     swift_exe=args['swift_path'],
-    #     swift_config=swift_conf_filepath,
-    #     swift_script=swift_script
+    # subprocess.call('{parsl_exe} -config {parsl_config} {parsl_script}'.format(
+    #     parsl_exe=args['parsl_path'],
+    #     parsl_config=parsl_conf_filepath,
+    #     parsl_script=parsl_script
     # ), shell=True)
 
 

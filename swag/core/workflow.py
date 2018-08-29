@@ -8,9 +8,9 @@ from collections import defaultdict
 import six
 import cerberus
 
-import swiftseq.swift.wrappers
-from swiftseq.core import SwiftSeqSupported, SwiftSeqApps, SwiftSeqWorkflowValidation
-from swiftseq.core.exceptions import WorkflowConfigException
+import swag.parsl.wrappers
+from swag.core import SwagSupported, SwagApps, SwagWorkflowValidation
+from swag.core.exceptions import WorkflowConfigException
 
 
 ## To-do
@@ -29,17 +29,17 @@ def compose_workflow_wrappers(workflow, **wrapper_config):
 
     # Base apps
 
-    for base_app_name, base_app_config in six.iteritems(SwiftSeqApps.base()):
+    for base_app_name, base_app_config in six.iteritems(SwagApps.base()):
         # Skip base app if the exclusion is true
         # Leave this for now as it will be useful
         if base_app_config['exclusion'] != workflow.run_type:
-            compose_wrapper = getattr(swiftseq.swift.wrappers, 'compose_{}'.format(base_app_name))
+            compose_wrapper = getattr(swag.parsl.wrappers, 'compose_{}'.format(base_app_name))
             compose_wrapper(app_name=base_app_name, **wrapper_config)
 
     # Apps specified in the json workflow
     apps_in_workflow = workflow.programs_in_workflow
     for app_name, app_config in six.iteritems(apps_in_workflow):
-        compose_wrapper = getattr(swiftseq.swift.wrappers, 'compose_{}'.format(app_name))
+        compose_wrapper = getattr(swag.parsl.wrappers, 'compose_{}'.format(app_name))
         # print_wrapper = customApps[app_name]['print']  # custom apps
         compose_wrapper(app_name=app_name, app_parameters=app_config['params'], **wrapper_config)
 
@@ -62,14 +62,14 @@ def params_to_string(param_dict, sep):
 def get_all_programs(workflow_config):
     """
     For all program types proposed in the workflow configuration that are supported by
-    SwiftSeq, get program parameters and attributes (such as walltime).
+    Swag, get program parameters and attributes (such as walltime).
 
     :param workflow_config: dict Workflow configuration
     :return: dict Map of all supported programs to parameters and attributes
     """
     # Get all program types so all possible programs are caught
-    supported_program_types = SwiftSeqSupported.types('program')
-    supported_java = SwiftSeqSupported.programs('java')
+    supported_program_types = SwagSupported.types('program')
+    supported_java = SwagSupported.programs('java')
     programs_dict = defaultdict(dict)
 
     # Find intersection of proposed program types and supported program types
@@ -136,7 +136,7 @@ class Workflow(object):
         self.has_gatk = 'gatk_post-processing' in self.workflow_config
         self.has_rm_dup = 'duplicate_removal' in self.workflow_config
         self.has_struct_vars = bool(self.struct_var_callers)
-        self.has_alignment, self.has_genotyping = SwiftSeqSupported.flags()[self.run_type]
+        self.has_alignment, self.has_genotyping = SwagSupported.flags()[self.run_type]
         self.aligner = list(workflow_config['aligner'])[0] if self.has_alignment else None
 
         # All programs in json that need to be printed with params will
@@ -153,7 +153,7 @@ class Workflow(object):
         Go all the way down to applications... be sure all fields in params
         & walltime dict are strings. And be sure walltime dict only has len == 1 '''
 
-        cerberus.schema_registry.add('program-schema', SwiftSeqWorkflowValidation.get_program_schema())
+        cerberus.schema_registry.add('program-schema', SwagWorkflowValidation.get_program_schema())
         v = cerberus.Validator()
-        if not v.validate(document=self.workflow_config, schema=SwiftSeqWorkflowValidation.get_workflow_schema()):
+        if not v.validate(document=self.workflow_config, schema=SwagWorkflowValidation.get_workflow_schema()):
             raise WorkflowConfigException('Workflow failed validation: {}'.format(v.errors))

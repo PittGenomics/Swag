@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# SwiftSeq documentation build configuration file, created by
+# Swag documentation build configuration file, created by
 # sphinx-quickstart on Tue Apr 10 10:36:20 2018.
 #
 # This file is execfile()d with the current directory set to its
@@ -46,7 +46,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'SwiftSeq'
+project = 'Swag'
 copyright = '2018, Jason Pitt'
 author = 'Jason Pitt'
 
@@ -112,7 +112,7 @@ html_sidebars = {
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'SwiftSeqdoc'
+htmlhelp_basename = 'Swagdoc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -139,7 +139,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'SwiftSeq.tex', 'SwiftSeq Documentation',
+    (master_doc, 'Swag.tex', 'Swag Documentation',
      'Jason Pitt', 'manual'),
 ]
 
@@ -149,7 +149,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'swiftseq', 'SwiftSeq Documentation',
+    (master_doc, 'swag', 'Swag Documentation',
      [author], 1)
 ]
 
@@ -160,8 +160,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'SwiftSeq', 'SwiftSeq Documentation',
-     author, 'SwiftSeq', 'One line description of project.',
+    (master_doc, 'Swag', 'Swag Documentation',
+     author, 'Swag', 'One line description of project.',
      'Miscellaneous'),
 ]
 

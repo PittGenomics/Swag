@@ -1,5 +1,5 @@
 import os
-from swiftseq.core import SwiftSeqStrings
+from swag.core import SwagStrings
 
 
 def mkdirs(path):
@@ -33,7 +33,7 @@ def is_valid_file(arg):
     if not os.path.isfile(arg):
         raise IOError('The provided file {arg} does not exist.\n{help_msg}'.format(
             arg=arg,
-            help_msg=SwiftSeqStrings.help_msg
+            help_msg=SwagStrings.help_msg
         ))
 
 
@@ -44,7 +44,7 @@ def is_valid_dir(arg):
     if not os.path.exists(arg) or os.path.isfile(arg):
         raise IOError('The provided argument {arg} is not a directory.\n{help_msg}'.format(
             arg=arg,
-            help_msg=SwiftSeqStrings.help_msg
+            help_msg=SwagStrings.help_msg
         ))
 
 
@@ -63,5 +63,5 @@ def is_valid_tmp_dir(arg):
             raise IOError('The provided argument {arg} is not a directory and cannot be created.\n'
                           'Please supply a valid directory or path.\n{help_msg}'.format(
                 arg=arg,
-                help_msg=SwiftSeqStrings.help_msg
+                help_msg=SwagStrings.help_msg
             ))

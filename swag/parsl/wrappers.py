@@ -2,7 +2,7 @@ import os
 import six
 
 """ The section contains functions that will print out the various wrappers
-needed for SwiftSeq computations. Each will take various params such as
+needed for Swag computations. Each will take various params such as
 algorith executables, reference files, and parameter strings that are
 needed for the underlying algorithms to run """
 
@@ -11,7 +11,7 @@ needed for the underlying algorithms to run """
 
 # Each wrapper has a fixed output name
 # Names of the wrappers present in functions below
-# Swift function names should be the same minus the ...'.sh'
+# Parsl function names should be the same minus the ...'.sh'
 """
 GatkIndelRealn.sh
 GatkBqsrGrp.sh
@@ -80,7 +80,7 @@ def get_broken_symlink_check_str(variableName):
     check if the symlink for that file is broken
 
     This seems to be helping with files not being staged out properly.
-    Likely will not be necessary in bug fixed versions of Swift
+    Likely will not be necessary in bug fixed versions of Parsl
 
     Do not force an exit since other checks may occur afer the symlink
     check"""
@@ -238,7 +238,7 @@ def getBrokenSymlinkCheckStr(variableName):
     check if the symlink for that file is broken
 
     This seems to be helping with files not being staged out properly.
-    Likely will not be necessary in bug fixed versions of Swift
+    Likely will not be necessary in bug fixed versions of Parsl
 
     Do not force an exit since other checks may occur afer the symlink
     check"""
@@ -793,7 +793,7 @@ def compose_RgMergeSort(app_name, **kwargs):
 # TEMPORARY SOLUTION... WILL MAKE FLEXIBLE TO SAMTOOLS AS WELL
 def compose_ContigMergeSort(app_name, **kwargs):
     """This can potentially be used on contigs as well as read groups... check
-    when actually using Swift"""
+    when actually using Parsl"""
 
     exe_config = kwargs.get('exe_config')
 

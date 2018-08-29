@@ -5,21 +5,13 @@ To install with pip:
 
 .. code-block:: text
 
-    $ pip install swiftseq
+    $ pip install swag
 
-Or to get the latest development version::
+Once Swag is installed, software dependencies can be installed with `Bioconda <https://bioconda.github.io/>`_::
 
-    $ pip install git+https://github.com/PittGenomics/SwiftSeq@dev
+    $ swag install-env
 
-.. caution::
-
-    The development version may not be stable
-
-Once SwiftSeq is install, software dependencies can be installed with `Bioconda <https://bioconda.github.io/>`_::
-
-    $ swiftseq install-env
-
-This will produce an ``executables.config`` file that the user can pass directly into a SwiftSeq run.
+This will produce an ``executables.config`` file that the user can pass directly into a Swag run.
 
 .. note::
 
@@ -27,6 +19,6 @@ This will produce an ``executables.config`` file that the user can pass directly
     the user would rather install software dependencies manually, Swiftseq only needs an ``executables.config`` at
     runtime and is indifferent to where it comes from.
 
-The user can then run Swiftseq::
+The user can then run Swag::
 
-    swiftseq run --exe-config /path/to/executables.config [options]
+    swag run --exe-config /path/to/executables.config [options]

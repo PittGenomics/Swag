@@ -9,10 +9,10 @@ from datetime import datetime
 
 import six
 
-import swiftseq.util
-from swiftseq.util.path import is_valid_file
-from swiftseq.core.exceptions import EnvironmentVariableException
-from swiftseq.core import SwiftSeqSupported
+import swag.util
+from swag.util.path import is_valid_file
+from swag.core.exceptions import EnvironmentVariableException
+from swag.core import SwagSupported
 
 
 def info():
@@ -38,7 +38,7 @@ def get_conda_env_location(conda_path, conda_env_name):
 def main(args=None):
     # Get arguments if this is being executed directly
     if not args:
-        parser = argparse.ArgumentParser(prog='swiftseq install-env')
+        parser = argparse.ArgumentParser(prog='swag install-env')
         populate_parser(parser)
         args = vars(parser.parse_args())
 
@@ -53,8 +53,8 @@ def main(args=None):
     conda_path = args['conda_path'] or subprocess.check_output('which conda', shell=True).strip().decode()
 
     # Get information about environment
-    conda_env_name = args['name'] or 'swiftseq_{}'.format(datetime.now().strftime('%d%b%Y'))
-    packages = [p['bioconda_tag'] for p in SwiftSeqSupported.conda_install_packages]
+    conda_env_name = args['name'] or 'swag_{}'.format(datetime.now().strftime('%d%b%Y'))
+    packages = [p['bioconda_tag'] for p in SwagSupported.conda_install_packages]
 
     # Check for current channels with conda config --show-sources
     show_sources = subprocess.check_output([conda_path, 'config', '--show-sources']).decode()
@@ -87,7 +87,7 @@ def main(args=None):
         exe_config.write('#' * 15 + '\n')
 
         # conda_dir = os.path.split(os.path.split(conda_path)[0])[0]
-        for package_config in SwiftSeqSupported.conda_install_packages:
+        for package_config in SwagSupported.conda_install_packages:
             executable_key = (
                 (
                     [package_config['exe_key']]

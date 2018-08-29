@@ -1,24 +1,24 @@
 from setuptools import setup, find_packages
 
-from swiftseq.core import SwiftSeqStrings
+from swag.core import SwagStrings
 
 setup(
-    name=SwiftSeqStrings.setup_name,
-    version=SwiftSeqStrings.setup_version,
-    description=SwiftSeqStrings.setup_description,
-    license=SwiftSeqStrings.setup_license,
-    author=SwiftSeqStrings.setup_author,
-    author_email=SwiftSeqStrings.setup_author_email,
-    url=SwiftSeqStrings.setup_url,
+    name=SwagStrings.setup_name,
+    version=SwagStrings.setup_version,
+    description=SwagStrings.setup_description,
+    license=SwagStrings.setup_license,
+    author=SwagStrings.setup_author,
+    author_email=SwagStrings.setup_author_email,
+    url=SwagStrings.setup_url,
 
     packages=find_packages(),
     include_package_data=True,
     install_requires=['six', 'cerberus'],
     package_data={
-        'swiftseq': ['util_scripts/*']
+        'swag': ['util_scripts/*']
     },
     entry_points={
-        'console_scripts': ['swiftseq = swiftseq:execute_from_command_line']
+        'console_scripts': ['swag = swag:execute_from_command_line']
     },
     classifiers=[]
 )

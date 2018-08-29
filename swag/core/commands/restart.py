@@ -3,9 +3,9 @@ import os
 import argparse
 import subprocess
 
-import swiftseq.util
-from swiftseq.util.path import is_valid_file
-from swiftseq.core.exceptions import EnvironmentVariableException
+import swag.util
+from swag.util.path import is_valid_file
+from swag.core.exceptions import EnvironmentVariableException
 
 
 def info():
@@ -14,24 +14,24 @@ def info():
 
 def populate_parser(parser):
     parser.add_argument('--restart-log', required=True,
-                        help='The SwiftSeq restart log (rlog). Will be used to determine and '
+                        help='The Swag restart log (rlog). Will be used to determine and '
                              'execute remaining tasks (Required).')
     parser.add_argument('--config', required=True,
-                        help='The SwiftSeq config log. Contains paths to config files required by Swift (Required).')
-    parser.add_argument('--swift-path', default='swift', help='If provided, will use this path as the full path to the '
-                                                              'Swift executable; otherwise, defaults to finding Swift '
+                        help='The Swag config log. Contains paths to config files required by Parsl (Required).')
+    parser.add_argument('--parsl-path', default='parsl', help='If provided, will use this path as the full path to the '
+                                                              'Parsl executable; otherwise, defaults to finding Parsl '
                                                               'in PATH.')
     parser.add_argument('--heap-max', type=int, default=2500,
-                            help='Java max heap size in megabytes for the Swift process '
+                            help='Java max heap size in megabytes for the Parsl process '
                                  'running on the headnode (Default = 2500)')
     parser.add_argument('--gc-threads', type=int, default=1,
                             help='Number of threads dedicated for parallel garbage '
-                                 'collection on the Swift process (Default = 1)')
+                                 'collection on the Parsl process (Default = 1)')
 
 
 def main(args=None):
     if not args:
-        parser = argparse.ArgumentParser(prog='swiftseq restart')
+        parser = argparse.ArgumentParser(prog='swag restart')
         populate_parser(parser)
         args = vars(parser.parse_args())
 
@@ -40,15 +40,15 @@ def main(args=None):
     is_valid_file(args['config'])
 
     # Get bundles util scripts
-    util_scripts = swiftseq.util.get_util_scripts()
+    util_scripts = swag.util.get_util_scripts()
 
     # Output welcome to the user
     subprocess.call(util_scripts['util_graphic'], shell=True)
-    swiftseq.util.message_to_screen('\nPreparing to restart SwiftSeq run...\n')
+    swag.util.message_to_screen('\nPreparing to restart Swag run...\n')
 
     # Get config dict
-    restart_config = swiftseq.util.parse_config(args['config'])
-    required_keys = {'swift', 'conf', 'swiftScript', 'SWIFT_HOME', 'SWIFT_USERHOME'}
+    restart_config = swag.util.parse_config(args['config'])
+    required_keys = {'parsl', 'conf', 'parslScript', 'SWIFT_HOME', 'SWIFT_USERHOME'}
     if not required_keys.issubset(restart_config):
         raise KeyError('Required arguments {} not found in config file {}'.format(
             '{{{}}}'.format(', '.join(required_keys.difference(restart_config))),
@@ -65,12 +65,12 @@ def main(args=None):
     os.environ['SWIFT_HOME'] = restart_config['SWIFT_HOME']
     os.environ['SWIFT_USERHOME'] = restart_config['SWIFT_USERHOME']
 
-    # Re-run SwiftSeq using the configs are rlog provided
-    subprocess.call('{swift_exe} -resume {restart_log} -config {restart_conf} {swift_script}'.format(
-        swift_exe=args['swift_path'],
+    # Re-run Swag using the configs are rlog provided
+    subprocess.call('{parsl_exe} -resume {restart_log} -config {restart_conf} {parsl_script}'.format(
+        parsl_exe=args['parsl_path'],
         restart_log=args['restart_log'],
         restart_conf=restart_config['conf'],
-        swift_script=restart_config['swiftScript']
+        parsl_script=restart_config['parslScript']
     ), shell=True)
 
 if __name__ == '__main__':

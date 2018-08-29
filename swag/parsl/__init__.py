@@ -1,13 +1,13 @@
 """
-The modules and classes in swiftseq.swift have to do with writing out swift code.
+The modules and classes in swag.parsl have to do with writing out parsl code.
 """
 
 
-def printSwiftApps(FH):
-    '''All Swift scripts will contain all possible apps '''
+def printParslApps(FH):
+    '''All Parsl scripts will contain all possible apps '''
 
     Str = ('####################\n'
-           '#### Swift Apps ####\n'
+           '#### Parsl Apps ####\n'
            '####################\n'
 
            '# NOT CURRENTLY FUNCTIONAL wrapper needs adjustment mosaikAlnBam2FastqWrapper\n'
@@ -172,7 +172,7 @@ def printSwiftApps(FH):
     FH.write(Str)
 
 def printCustomStructs(FH, paired):
-    """ These same structs will be printed for each Swift script"""
+    """ These same structs will be printed for each Parsl script"""
 
     if paired:
         sample = ('type Sample {\n'

@@ -1,7 +1,7 @@
 """
-The modules and classes in swiftseq.core have to do with the core SwiftSeq functionality of collecting, validating,
-and manipulating user input and passing necessary information to the various functions that output swift code, then
-running the actual SwiftSeq run.
+The modules and classes in swag.core have to do with the core Swag functionality of collecting, validating,
+and manipulating user input and passing necessary information to the various functions that output parsl code, then
+running the actual Swag run.
 """
 import os
 import subprocess
@@ -26,12 +26,12 @@ conda_install_packages = [
 ]
 
 
-class SwiftSeqStrings(object):
+class SwagStrings(object):
     wiki_link = 'X'
     help_email = 'help@email.com'
     help_msg = ('\n### Help ###\n'
                 'Please carefully review the above error.\n'
-                'For assistance running SwiftSeq, visit {wiki_link}. If your '
+                'For assistance running Swag, visit {wiki_link}. If your '
                 'question remains unanswered, email us at {help_email}.').format(
                     wiki_link=wiki_link,
                     help_email=help_email
@@ -40,15 +40,15 @@ class SwiftSeqStrings(object):
     app_pool_default = 'primary'
     app_walltime_default = '24:00:00'
 
-    # For swiftseq.core.input
+    # For swag.core.input
     patient_out_filename = 'individuals.txt'
     sample_out_filename = 'samples.txt'
 
-    # For swiftseq.core.readgroups
+    # For swag.core.readgroups
     readgroups_out_filename = 'RGfiles.txt'
     readgroups_ids_out_filename = 'RGIDs.txt'
 
-    # For swiftseq.core.contigs
+    # For swag.core.contigs
     contigs_filename = 'contigs.txt'
     contig_unmapped_filename = 'contig_segments_unmapped.txt'
     sample_contigs_filename = 'sampleContigs.txt'
@@ -56,37 +56,37 @@ class SwiftSeqStrings(object):
     # Run directory structure setup
     analysis_reference_dir = 'Reference'
     restart_conf_filename = 'restart.conf'
-    swift_conf_filename = 'Swift.conf'
-    swift_script_filename = 'SwiftSeq.swift'
+    parsl_conf_filename = 'Parsl.conf'
+    parsl_script_filename = 'Swag.parsl'
     paired_analysis_dir = 'pairedAnalyses'
     worker_logging_dir = 'workerLogging'
     wrapper_dir = 'wrapper'
 
-    # For swiftseq.swift.generate
+    # For swag.parsl.generate
     generate_sort_app = 'RgMergeSort'
     contig_split_bam = 'alnSampleBam'
 
     # Strings for setuptools
-    setup_name = 'SwiftSeq'
-    setup_version = '1.0.3'
-    setup_description = 'SwiftSeq Parallel Genomics Workflow'
+    setup_name = 'Swag'
+    setup_version = '0.1.0'
+    setup_description = 'Scalable Workflows for Analyzing Genomes'
     setup_license = 'Apache Software License'
     setup_author = 'Jason Pitt'
     setup_author_email = 'jason.j.pitt@gmail.com'
-    setup_url = 'https://github.com/PittGenomics/SwiftSeq'
+    setup_url = 'https://github.com/PittGenomics/Swag'
 
 
-class SwiftSeqWorkflowValidation(object):
+class SwagWorkflowValidation(object):
     @staticmethod
     def get_workflow_schema():
         steps_schema = {}
-        for step in SwiftSeqSupported.types('program'):
+        for step in SwagSupported.types('program'):
             steps_schema[step] = {'type': 'dict', 'schema': dict()}
-            for program in SwiftSeqSupported.programs(step):
+            for program in SwagSupported.programs(step):
                 steps_schema[step]['schema'][program] = {'type': 'dict', 'schema': 'program-schema'}
 
         # Contraints for specific workflow steps
-        # TODO Connect specific step names with SwiftSeqSupported so edits only happen in one place
+        # TODO Connect specific step names with SwagSupported so edits only happen in one place
         steps_schema['aligner'].update({'minlength': 1, 'maxlength': 1})
         steps_schema['duplicate_marking'].update({'minlength': 1, 'maxlength': 1})
         # steps_schema['gatk_post-processing'].update({'minlength': 2, 'maxlength': 2})
@@ -94,12 +94,12 @@ class SwiftSeqWorkflowValidation(object):
         workflow_schema = {
             'data_type': {
                 'type': 'string',
-                'allowed': list(SwiftSeqSupported.types('data')),
+                'allowed': list(SwagSupported.types('data')),
                 'required': True
             },
             'run_type': {
                 'type': 'string',
-                'allowed': list(SwiftSeqSupported.types('run')),
+                'allowed': list(SwagSupported.types('run')),
                 'required': True
             }
         }
@@ -131,7 +131,7 @@ def install_novosort_license(conda_bin_dir, **kwargs):
         ])
 
 
-class SwiftSeqSupported(object):
+class SwagSupported(object):
     # Possible keys:
     #    - bioconda_tag: bioconda name and optional version number, fed directly to bioconda
     #    - exe_name: filename of the executable or jar file or whatever is executed
@@ -215,7 +215,7 @@ class SwiftSeqSupported(object):
         Get the supported programs from a given grouping. If the name of the grouping is not
         found, return an empty set
         """
-        return SwiftSeqSupported._get_supported(grouping_name)
+        return SwagSupported._get_supported(grouping_name)
 
     @ staticmethod
     def types(grouping_name):
@@ -223,14 +223,14 @@ class SwiftSeqSupported(object):
         Get the supported types from a given grouping. If the name of the grouping is not
         found, return an empty set
         """
-        return SwiftSeqSupported._get_supported(grouping_name, entity='types')
+        return SwagSupported._get_supported(grouping_name, entity='types')
 
     @staticmethod
     def flags():
         """
         Get the aligner and/or genotyper present flags depending on the run type
         """
-        return SwiftSeqSupported._supported.get('flags')
+        return SwagSupported._supported.get('flags')
 
     @staticmethod
     def params(grouping_name='program'):
@@ -238,7 +238,7 @@ class SwiftSeqSupported(object):
         Get the supported params from a given grouping. If the name of the grouping is not
         found, return an empty set
         """
-        return SwiftSeqSupported._get_supported(grouping_name, entity='params')
+        return SwagSupported._get_supported(grouping_name, entity='params')
 
     @ staticmethod
     def all():
@@ -246,19 +246,19 @@ class SwiftSeqSupported(object):
         Return all supported entities in a single set
         """
         return set.union(
-            SwiftSeqSupported.programs('remove_duplicates'),
-            SwiftSeqSupported.programs('structural_variant_callers'),
-            SwiftSeqSupported.programs('genotypers'),
-            SwiftSeqSupported.programs('aligners'),
-            SwiftSeqSupported.programs('bam_quality_control')
+            SwagSupported.programs('remove_duplicates'),
+            SwagSupported.programs('structural_variant_callers'),
+            SwagSupported.programs('genotypers'),
+            SwagSupported.programs('aligners'),
+            SwagSupported.programs('bam_quality_control')
         )
 
     @staticmethod
     def _get_supported(grouping_name, entity='programs'):
-        return SwiftSeqSupported._supported[entity].get(grouping_name, set())
+        return SwagSupported._supported[entity].get(grouping_name, set())
 
 
-class SwiftSeqApps(object):
+class SwagApps(object):
     """
 
     """

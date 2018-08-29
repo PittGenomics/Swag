@@ -1,10 +1,10 @@
 import os
 
-from swiftseq.core import SwiftSeqStrings
-from swiftseq.swift import printSwiftApps, printCustomStructs
-from swiftseq.swift.syntax import *
+from swag.core import SwagStrings
+from swag.parsl import printParslApps, printCustomStructs
+from swag.parsl.syntax import *
 
-def germline_swift(workflow, workDir, contigsFile, outDir):
+def germline_parsl(workflow, workDir, contigsFile, outDir):
     ''' ggggg '''
 
     ########################################################################
@@ -13,27 +13,27 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
     # !# Will need to ensure these are the proper names and naming conventions we need
     # Maybe merge these for germline and tumor normal pairs
 
-    # Write out swift script
-    swift_script_path = os.path.join(workDir, SwiftSeqStrings.swift_script_filename)
-    with open(swift_script_path, 'w') as swift_script:
+    # Write out parsl script
+    parsl_script_path = os.path.join(workDir, SwagStrings.parsl_script_filename)
+    with open(parsl_script_path, 'w') as parsl_script:
         ########################################################################
-        ## Print out Swift syntax for apps and custom structs
+        ## Print out Parsl syntax for apps and custom structs
         ########################################################################
-        # print the apps to swift file
-        printSwiftApps(swift_script)
+        # print the apps to parsl file
+        printParslApps(parsl_script)
         # write custom structs to file
         # False indicates a germline run
-        printCustomStructs(swift_script, paired=False)
+        printCustomStructs(parsl_script, paired=False)
 
         ########################################################################
         ## Set up w/ sample for loop
         ########################################################################
         # Will occur in all runs (alignment, geno, or both)
         printSetup(
-            swift_script,
+            parsl_script,
             tabCount=0,
             contigsFile=contigsFile,
-            sampleDataFile=os.path.join(outDir, SwiftSeqStrings.patient_out_filename)  # May not be needed in germline
+            sampleDataFile=os.path.join(outDir, SwagStrings.patient_out_filename)  # May not be needed in germline
         )
 
         ########################################################################
@@ -41,21 +41,21 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         ########################################################################
         # inBam will be passed to split by contig if alignment is not needed
         inBam = printPreAlignment(
-            swift_script,
+            parsl_script,
             tabCount=1,
-            RGfiles=SwiftSeqStrings.readgroups_out_filename,
+            RGfiles=SwagStrings.readgroups_out_filename,
             alignment=workflow.has_alignment
         )
 
         if workflow.has_alignment:
             ## Aln read groups & merge-sort
             printAlignment(
-                swift_script,
+                parsl_script,
                 tabCount=1,
                 alignerApp=workflow.aligner,
-                mergesortApp=SwiftSeqStrings.generate_sort_app
+                mergesortApp=SwagStrings.generate_sort_app
             )
-            contigSplitBam = SwiftSeqStrings.contig_split_bam  # Default bam name post-alignment
+            contigSplitBam = SwagStrings.contig_split_bam  # Default bam name post-alignment
         else:
             contigSplitBam = inBam
 
@@ -63,16 +63,16 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         ##   Handle contigs
         ########################################################################
         if workflow.has_gatk:
-            printGrpFilenames(swift_script, tabCount=1)  # tab count of 1
+            printGrpFilenames(parsl_script, tabCount=1)  # tab count of 1
 
         # For each caller print the auto increment array to hold vcfs
         if workflow.has_genotyping:
             for genotyper in workflow.genotypers:
-                printVcfArray(swift_script, tabCount=1, genotyper=genotyper)  # tab count of 1
+                printVcfArray(parsl_script, tabCount=1, genotyper=genotyper)  # tab count of 1
 
         if workflow.has_struct_vars:
             for structVarCaller in workflow.struct_var_callers:
-                printVcfArray(swift_script, tabCount=1, genotyper=structVarCaller)  # tab count of 1
+                printVcfArray(parsl_script, tabCount=1, genotyper=structVarCaller)  # tab count of 1
 
         # Dup removal optional for non-alignment cases
         has_rm_dup = workflow.has_alignment
@@ -83,7 +83,7 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         # This step will always occur
         # The difference will be if dup removal is performed
         genoBam = printContigSetup(
-            swift_script,
+            parsl_script,
             tabCount=1,
             inputBam=contigSplitBam,
             inputBamIndex=contigSplitBam + 'Index',
@@ -97,7 +97,7 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         # Will update the name of the genoBam if gatk performed
         if workflow.has_gatk:
             genoBam = printGatkAppCalls(
-                swift_script,
+                parsl_script,
                 tabCount=2,
                 inputBam=genoBam
             )
@@ -107,10 +107,10 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         ########################################################################
         if workflow.has_genotyping:
             printSingleSampleGeno(
-                swift_script,
+                parsl_script,
                 tabCount=2,
                 genotypers=workflow.genotypers,
-                refDir=os.path.join(workDir, outDir, SwiftSeqStrings.analysis_reference_dir),
+                refDir=os.path.join(workDir, outDir, SwagStrings.analysis_reference_dir),
                 genoBam=genoBam,
                 genoBamIndex=genoBam + 'Bai'
             )
@@ -121,7 +121,7 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         # Step flexible even if Delly only supported
         if workflow.has_struct_vars:
             printDellyApp(
-                swift_script,
+                parsl_script,
                 tabCount=2,
                 genoBam=genoBam,
                 genoBamIndex=genoBam + 'Bai'
@@ -131,14 +131,14 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         # Assign contig bams to arrays
         ########################################################################
         printGermBamArrayAssignment(
-            swift_script,
+            parsl_script,
             tabCount=2,
             contig='contigName',
             genoBam=genoBam,
             genoBamIndex=genoBam + 'Bai'
         )
         closeBracket(
-            swift_script,
+            parsl_script,
             tabCount=1,
             comment='# End of contig'
         )
@@ -150,12 +150,12 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
 
         # Create the command that will print the grp reduce call if GATK required
         if workflow.has_gatk:
-            printReduceGrpAppCall(swift_script, tabCount=1)
+            printReduceGrpAppCall(parsl_script, tabCount=1)
 
         # Merge contigs and save the output bam variable name
         if workflow.has_alignment:
             QCBam = printContigMergeSort(
-                swift_script,
+                parsl_script,
                 tabCount=1,
                 bamArrayName='contigBams',
                 name='geno',
@@ -174,7 +174,7 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         if workflow.has_genotyping:
             for genotyper in workflow.genotypers:
                 printReduceVcfApp(
-                    swift_script,
+                    parsl_script,
                     tabCount=1,
                     genotyper=genotyper,
                     sampleDir='sample.dir',
@@ -188,14 +188,14 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
                 # Will perform translocations analysis prior to the merge
                 if structVarCaller == 'DellyGerm':
                     printGermDellyTransApp(
-                        swift_script,
+                        parsl_script,
                         tabCount=1,
                         mergedBam=QCBam,
                         mergedBamIndex=QCBam + 'Index'
                     )
 
                 printReduceVcfApp(
-                    swift_script,
+                    parsl_script,
                     tabCount=1,
                     genotyper=structVarCaller,
                     sampleDir='sample.dir',
@@ -207,7 +207,7 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
         ########################################################################
         ## Quality control
         printQualityControl(
-            swift_script,
+            parsl_script,
             tabCount=1,
             QCBam=QCBam,
             sampleDir='sample.dir',
@@ -215,12 +215,12 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
             apps=workflow.bam_quality_control_apps
         )
         closeBracket(
-            swift_script,
+            parsl_script,
             tabCount=0,
             comment='# End of sample'
         )  # This is the end of the sample
 
-    return swift_script_path
+    return parsl_script_path
 
 
 ### This will be necessary for ASCAT (not necessarily) and tranlocations
@@ -228,7 +228,7 @@ def germline_swift(workflow, workDir, contigsFile, outDir):
 
 ### TO-DO - handle indexes in the cases of no alignment
 
-def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
+def tumor_normal_parsl(workflow, workDir, contigsFileFp, outDir):
     ''' Perhaps break this up at some point '''
 
     ##########################################################################
@@ -237,20 +237,20 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
     # !# Will need to ensure these are the proper names and naming conventions we need
     # Maybe merge these for germline and tumor normal pairs
 
-    swift_script_path = os.path.join(workDir, SwiftSeqStrings.swift_script_filename)
-    with open(swift_script_path, 'w') as swift_script:
+    parsl_script_path = os.path.join(workDir, SwagStrings.parsl_script_filename)
+    with open(parsl_script_path, 'w') as parsl_script:
         ########################################################################
-        ## Print out Swift syntax
+        ## Print out Parsl syntax
         ########################################################################
-        # print the apps to swift file
-        printSwiftApps(swift_script)
+        # print the apps to parsl file
+        printParslApps(parsl_script)
         # write custom structs to file
         # True indicates a paired run
-        printCustomStructs(swift_script, paired=True)
+        printCustomStructs(parsl_script, paired=True)
 
         # Map Strelka config
         if 'Strelka' in workflow.genotypers:
-            swift_script.write(
+            parsl_script.write(
                 'file strelkaConfig <single_file_mapper; file="{out_dir}/strelkaConfig.ini">;\n\n'.format(
                     out_dir=outDir
                 )
@@ -260,11 +260,11 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
             """
 
         printPairedSetup(
-            swift_script,
+            parsl_script,
             tabCount=0,
             contigsFile=contigsFileFp,
-            patientDataFile=os.path.join(workDir, outDir, SwiftSeqStrings.patient_out_filename),
-            sampleDataFile=SwiftSeqStrings.sample_out_filename
+            patientDataFile=os.path.join(workDir, outDir, SwagStrings.patient_out_filename),
+            sampleDataFile=SwagStrings.sample_out_filename
         )
 
         ########################################################################
@@ -272,21 +272,21 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
         ########################################################################
         # inBam will be passed to split by contig if alignment is not needed
         inBam = printPreAlignment(
-            swift_script,
+            parsl_script,
             tabCount=3,
-            RGfiles=SwiftSeqStrings.readgroups_out_filename,
+            RGfiles=SwagStrings.readgroups_out_filename,
             alignment=workflow.has_alignment
         )
 
         if workflow.has_alignment:
             ## Aln read groups & merge-sort
             printAlignment(
-                swift_script,
+                parsl_script,
                 tabCount=3,
                 alignerApp=workflow.aligner,
-                mergesortApp=SwiftSeqStrings.generate_sort_app
+                mergesortApp=SwagStrings.generate_sort_app
             )
-            contigSplitBam = SwiftSeqStrings.contig_split_bam  # Default bam name post-alignment
+            contigSplitBam = SwagStrings.contig_split_bam  # Default bam name post-alignment
         else:
             contigSplitBam = inBam
 
@@ -294,7 +294,7 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
         ##   Handle contigs
         ########################################################################
         if workflow.has_gatk:
-            printGrpFilenames(swift_script, tabCount=3)  # tab count of 1
+            printGrpFilenames(parsl_script, tabCount=3)  # tab count of 1
 
         # Dup removal optional for non-alignment cases
         has_rm_dup = workflow.has_alignment
@@ -306,7 +306,7 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
         # The difference will be if dup removal is performed
         ##!!!! If not alignement index inbam !!! ###
         genoBam = printContigSetup(
-            swift_script,
+            parsl_script,
             tabCount=3,
             inputBam=contigSplitBam,
             inputBamIndex=contigSplitBam + 'Index',
@@ -320,7 +320,7 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
         # Will update the name of the genoBam if gatk performed
         if workflow.has_gatk:
             genoBam = printGatkAppCalls(
-                swift_script,
+                parsl_script,
                 tabCount=4,
                 inputBam=genoBam
             )
@@ -329,13 +329,13 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
         # Assign contig bams to arrays
         ########################################################################
         printPairedBamArrayAssignment(
-            swift_script,
+            parsl_script,
             tabCount=4,
             contig='contigName',
             genoBam=genoBam
         )
         closeBracket(
-            swift_script,
+            parsl_script,
             tabCount=3,
             comment='# End of contigs'
         )
@@ -347,14 +347,14 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
 
         # Create the command that will print the grp reduce call if GATK required
         if workflow.has_gatk:
-            printReduceGrpAppCall(swift_script, tabCount=3)
+            printReduceGrpAppCall(parsl_script, tabCount=3)
 
         # !# This will be a disparity between germline and tumor-normal
         # !# Is germ conting merge sort ok here???
 
         # Should occur regardless of genotyping or not
         QCBam = printPairedContigMergeSort(
-            swift_script,
+            parsl_script,
             tabCount=3,
             name='geno',
             sampleDir='sample.dir',
@@ -362,9 +362,9 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
         )
 
         # Do QC here - shouldn't this use QCBam?
-        # if bamQualityCOntrolApps is empty it will print nothing to the Swift script
+        # if bamQualityCOntrolApps is empty it will print nothing to the Parsl script
         printQualityControl(
-            swift_script,
+            parsl_script,
             tabCount=3,
             QCBam='pairedSampleData.wholeBam',
             sampleDir='sample.dir',
@@ -372,24 +372,24 @@ def tumor_normal_swift(workflow, workDir, contigsFileFp, outDir):
             apps=workflow.bam_quality_control_apps
         )
 
-        printAssignPairedData(swift_script, tabCount=3)
+        printAssignPairedData(parsl_script, tabCount=3)
 
-        closeBracket(swift_script, tabCount=2, comment='# End of sample')
-        closeBracket(swift_script, tabCount=1, comment='# End of tissue')
+        closeBracket(parsl_script, tabCount=2, comment='# End of sample')
+        closeBracket(parsl_script, tabCount=1, comment='# End of tissue')
 
         ##########################
         ## Do paired genotyping
         ##########################
         if workflow.has_genotyping:
             printPairedGeno(
-                swift_script,
+                parsl_script,
                 tabCount=1,
-                pairedAnalysisDir=SwiftSeqStrings.paired_analysis_dir,
-                refDir=os.path.join(workDir, outDir, SwiftSeqStrings.analysis_reference_dir),
+                pairedAnalysisDir=SwagStrings.paired_analysis_dir,
+                refDir=os.path.join(workDir, outDir, SwagStrings.analysis_reference_dir),
                 genotypers=workflow.genotypers,
                 structVarCallers=workflow.struct_var_callers
         )
 
-        closeBracket(swift_script, tabCount=0, comment='# End of patient/individual')
+        closeBracket(parsl_script, tabCount=0, comment='# End of patient/individual')
 
-    return swift_script_path
+    return parsl_script_path

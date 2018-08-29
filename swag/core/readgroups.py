@@ -8,7 +8,7 @@ import warnings
 from subprocess import Popen, PIPE
 
 import six
-from swiftseq.core import SwiftSeqStrings
+from swag.core import SwagStrings
 
 FIRST_RESULT = 0
 FIRST_IN_GROUP = 0
@@ -59,8 +59,8 @@ def create_readgroup_files(inputdata_symlinks, samtools_path):
     for file_ in inputdata_symlinks:
         dirPath = os.path.dirname(file_)
         readGroupIds = make_readgroup_dict(file_, samtools_path)
-        readgroup_out_path = os.path.join(dirPath, SwiftSeqStrings.readgroups_out_filename)
-        readgroup_id_out_path = os.path.join(dirPath, SwiftSeqStrings.readgroups_ids_out_filename)
+        readgroup_out_path = os.path.join(dirPath, SwagStrings.readgroups_out_filename)
+        readgroup_id_out_path = os.path.join(dirPath, SwagStrings.readgroups_ids_out_filename)
 
         with open(readgroup_out_path, 'w') as rg_out, open(readgroup_id_out_path, 'w') as rgid_out:
             for readgroup in readGroupIds:

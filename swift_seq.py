@@ -334,7 +334,7 @@ def run_all(samples, genomeContigs, mock=False):
          print("Wait for picardMarkDuplicates : ", picard_fu.result())
          _, contigDupBam, _ = picard_data_fus
 
-         ref_path = "/home/ubuntu/SwiftSeq/test_run/analysis/Reference/contig_segments_{0}.txt"
+         ref_path = "/home/ubuntu/Swag/test_run/analysis/Reference/contig_segments_{0}.txt"
          print("HARDCODED REF_PATH: {}".format(ref_path))
          contigSegments = readData(ref_path.format(contigName))
 

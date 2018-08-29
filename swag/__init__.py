@@ -6,11 +6,11 @@ import traceback
 from importlib import import_module
 from pkgutil import iter_modules
 
-from swiftseq.core import commands
+from swag.core import commands
 
 
 def execute_from_command_line():
-    parser = argparse.ArgumentParser(prog='swiftseq')
+    parser = argparse.ArgumentParser(prog='swag')
     parser.add_argument('--debug', action='store_true')
     subparsers = parser.add_subparsers()
 
@@ -18,7 +18,7 @@ def execute_from_command_line():
     subprograms = [
         [command] + command.info()
         for command
-        in [import_module('swiftseq.core.commands.' + name) for _, name, _ in iter_modules([commands_path])]
+        in [import_module('swag.core.commands.' + name) for _, name, _ in iter_modules([commands_path])]
     ]
 
     for module, command, description in subprograms:

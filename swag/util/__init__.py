@@ -16,9 +16,9 @@ def message_to_screen(message, banner=False, bannerdashes=57):
 
 def get_util_scripts():
     util_scripts = dict()
-    for util_script_filename in resource_listdir(Requirement.parse('swiftseq'), 'swiftseq/util_scripts'):
+    for util_script_filename in resource_listdir(Requirement.parse('swag'), 'swag/util_scripts'):
         util_name = util_script_filename.rsplit('.', 1)[FIRST]
-        util_full_filepath = resource_filename(Requirement.parse('swiftseq'), 'swiftseq/util_scripts/{}'.format(
+        util_full_filepath = resource_filename(Requirement.parse('swag'), 'swag/util_scripts/{}'.format(
             util_script_filename
         ))
         util_scripts['util_{}'.format(util_name)] = util_full_filepath

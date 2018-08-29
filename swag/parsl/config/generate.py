@@ -1,7 +1,7 @@
 import six
 
 
-class SwiftConfigProp(object):
+class ParslConfigProp(object):
     NO_QUOTE = '{key}: {val}'
 
     def __init__(self, key, value, sep=': ', override=None):
@@ -28,7 +28,7 @@ class SwiftConfigProp(object):
         return self.__str__()
 
 
-class SwiftConfigBlock(object):
+class ParslConfigBlock(object):
     def __init__(self, name, *args, **kwargs):
         self.name = name
         self.level = kwargs.get('level', 0)
@@ -45,12 +45,12 @@ class SwiftConfigBlock(object):
         block_str = '{indent}{name} {{\n{children}{indent}}}'
         children_str = ''
         for child in self._children:
-            if isinstance(child, SwiftConfigProp):
+            if isinstance(child, ParslConfigProp):
                 children_str += '{indent}{child}\n'.format(
                     indent=self.indent_char * self._children_level,
                     child=str(child)
                 )
-            elif isinstance(child, SwiftConfigBlock):
+            elif isinstance(child, ParslConfigBlock):
                 child.set_level(self._children_level)
                 children_str += '{child}\n'.format(
                     child=str(child)

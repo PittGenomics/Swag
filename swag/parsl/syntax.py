@@ -220,7 +220,7 @@ def printAlignment(FH, tabCount, alignerApp, mergesortApp):
 				tabs + '\t' + 'file RGalnLog <single_file_mapper; file=strcat(sample.dir,"/",RGID,".aln.log")>;\n\n' +
 		
 				tabs + '\t' + '# Converting to fastq will occur within the alignment wrapper\n' +
-				tabs + '\t' + '# Allow SwiftSeq to be agnostic about single vs paired-end reads\n' +
+				tabs + '\t' + '# Allow Swag to be agnostic about single vs paired-end reads\n' +
 				tabs + '\t' + '(RGalnLog,RGalnBam,RGalnBai) = ' + alignerApp +' (RGBam,readGroupStr,RGID,sample.dir);\n\n' +
 		
 				tabs + '\t' + '# Map realigned file to an array\n' +
@@ -229,7 +229,7 @@ def printAlignment(FH, tabCount, alignerApp, mergesortApp):
 			
 			tabs + '# Read in the names of the contig bams... will be abs filepath\n' +
 			tabs + '# Needs to start as a string array, then mapped to a file array\n' +
-			tabs + '# per swift language constraint...\n' +
+			tabs + '# per parsl language constraint...\n' +
 			tabs + 'file alnSampleContigBamFile <single_file_mapper; file=strcat(sample.dir,"/","sampleContigs.txt")>;\n' +
 			tabs + 'string alnSampleContigBamsStr [] = readData(strcat(sample.dir,"/","sampleContigs.txt"));\n' +
 			tabs + 'file alnSampleContigBams [] <array_mapper; files=alnSampleContigBamsStr>;\n\n' +
@@ -261,7 +261,7 @@ def printAlignment(FH, tabCount, alignerApp, mergesortApp):
            tabs + '\t' + 'file RGalnLog <single_file_mapper; file=strcat(sample.dir,"/",RGID,".aln.log")>;\n\n' +
 
            tabs + '\t' + '# Converting to fastq will occur within the alignment wrapper\n' +
-           tabs + '\t' + '# Allow SwiftSeq to be agnostic about single vs paired-end reads\n' +
+           tabs + '\t' + '# Allow Swag to be agnostic about single vs paired-end reads\n' +
            tabs + '\t' + '(RGalnLog,RGalnBam,RGalnBai) = ' + alignerApp + ' (inBam,RGname,RGID,sample.dir);\n\n' +
 
            tabs + '\t' + '# Map realigned file to an array\n' +
@@ -270,7 +270,7 @@ def printAlignment(FH, tabCount, alignerApp, mergesortApp):
 
            tabs + '# Read in the names of the contig bams... will be abs filepath\n' +
            tabs + '# Needs to start as a string array, then mapped to a file array\n' +
-           tabs + '# per swift language constraint...\n' +
+           tabs + '# per parsl language constraint...\n' +
            tabs + 'file alnSampleContigBamFile <single_file_mapper; file=strcat(sample.dir,"/","sampleContigs.txt")>;\n' +
            tabs + 'string alnSampleContigBamsStr [] = readData(strcat(sample.dir,"/","sampleContigs.txt"));\n' +
            tabs + 'file alnSampleContigBams [] <array_mapper; files=alnSampleContigBamsStr>;\n\n' +

@@ -2,8 +2,8 @@
 Written by Jason Pitt
 Revised by Dominic Fitzgerald on 30 May 2017
 
-swiftseq run [args]
-The entry point for starting a new SwiftSeq run.
+swag run [args]
+The entry point for starting a new Swag run.
 """
 import os
 import warnings
@@ -12,10 +12,10 @@ from itertools import product
 
 import six
 
-from swiftseq.core import SwiftSeqStrings
-from swiftseq.core.readgroups import create_readgroup_files
-from swiftseq.core.workflow import Workflow
-from swiftseq.util.path import mkdirs, mksym
+from swag.core import SwagStrings
+from swag.core.readgroups import create_readgroup_files
+from swag.core.workflow import Workflow
+from swag.util.path import mkdirs, mksym
 
 ROOT = 0
 
@@ -105,19 +105,19 @@ def create_analysis_dir(inputdata_type, inputdata_filepaths, inputdata_dir_root,
     return verified_symlinks
 
 
-def find_data_filepaths(swiftseq_data_dir, suffix):
+def find_data_filepaths(swag_data_dir, suffix):
     """
     Traverses the data directory to find files that end with suffix. Returns a list
     of filepaths relative to the data directory of those ending with suffix.
 
     Side effects: None
 
-    :param swiftseq_data_dir: str Root of the swiftseq data directory
+    :param swag_data_dir: str Root of the swag data directory
     :param suffix: str Suffix to search for
     :return: list Relative paths of those files ending with suffix
     """
     filepaths_with_suffix = list()
-    for root, dirs, files in os.walk(swiftseq_data_dir, followlinks=True):
+    for root, dirs, files in os.walk(swag_data_dir, followlinks=True):
         # If no files exist, raise an exception
         # if not files:
         #     raise Exception('No files found in the data directory. '
@@ -125,7 +125,7 @@ def find_data_filepaths(swiftseq_data_dir, suffix):
 
         # Add all files found in this directory ending in suffix
         filepaths_with_suffix.extend([
-            os.path.join(os.path.relpath(root, swiftseq_data_dir), file_)
+            os.path.join(os.path.relpath(root, swag_data_dir), file_)
             for file_ in files if file_.endswith(suffix)
         ])
 
@@ -241,7 +241,7 @@ def create_tissue_samples_files(tn_inputdata_map):
             tissue_relpath = os.path.join(patient_id_relpath, tissue)
 
             # Write out to a file on disk for each tissue type in that tissue's directory
-            sample_out_filepath = os.path.join(tissue_relpath, SwiftSeqStrings.sample_out_filename)
+            sample_out_filepath = os.path.join(tissue_relpath, SwagStrings.sample_out_filename)
             with open(sample_out_filepath, 'w') as tissue_samples_file:
                 # Write out the header
                 tissue_samples_file.write('ID sampleDir dir filepath\n')
@@ -277,7 +277,7 @@ def create_paired_output_dirs(tn_inputdata_map):
             tn_joined_sample_name = '___'.join((tumor_sample, normal_sample))
 
             # Create the new directory for this tumor-normal pair
-            mkdirs(os.path.join(patient_id_relpath, SwiftSeqStrings.paired_analysis_dir, tn_joined_sample_name))
+            mkdirs(os.path.join(patient_id_relpath, SwagStrings.paired_analysis_dir, tn_joined_sample_name))
 
 
 """
@@ -338,7 +338,7 @@ def process_samples(inputdata_type, inputdata_filepaths, data_root, analysis_roo
         # Create the mapping file from patient id relative paths to patient ids
         # TODO Remove extra slash
         create_tn_patients_map_file(
-            tn_patients_map_filepath=os.path.join(analysis_root, SwiftSeqStrings.patient_out_filename),
+            tn_patients_map_filepath=os.path.join(analysis_root, SwagStrings.patient_out_filename),
             patient_id_relpaths=tn_inputdata_map.keys()
         )
 
@@ -353,7 +353,7 @@ def process_samples(inputdata_type, inputdata_filepaths, data_root, analysis_roo
         n_individuals_analyzed = len(tn_inputdata_map)
     elif inputdata_type == Workflow.GERMLINE:
         create_germline_samples_file(
-            germline_samples_filepath=os.path.join(analysis_root, SwiftSeqStrings.patient_out_filename),
+            germline_samples_filepath=os.path.join(analysis_root, SwagStrings.patient_out_filename),
             inputdata_symlinks=inputdata_symlinks
         )
     else:

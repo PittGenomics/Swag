@@ -13,7 +13,7 @@ setup(
 
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['six', 'cerberus'],
+    install_requires=['six', 'cerberus', 'parsl', 'libsubmit'],
     package_data={
         'swag': ['util_scripts/*']
     },

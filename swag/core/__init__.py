@@ -56,8 +56,6 @@ class SwagStrings(object):
     # Run directory structure setup
     analysis_reference_dir = 'Reference'
     restart_conf_filename = 'restart.conf'
-    parsl_conf_filename = 'Parsl.conf'
-    parsl_script_filename = 'Swag.parsl'
     paired_analysis_dir = 'pairedAnalyses'
     worker_logging_dir = 'workerLogging'
     wrapper_dir = 'wrapper'

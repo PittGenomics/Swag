@@ -170,84 +170,6 @@ def printDellyApp(FH, tabCount, genoBam, genoBamIndex):
     return
 
 
-def printPreAlignment(FH, tabCount, RGfiles, alignment):
-    ''' fff '''
-
-    tabs = tabCount * '\t'
-
-    allStr = (tabs + '# INPUT - Unaligned input files (including read groups)\n' +
-              tabs + 'file inBam <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".bam")>;\n\n')
-
-    alnStr = (tabs + '## Read group bams\n' +
-              tabs + '# reads in the data file containing read group names\n' +
-              tabs + 'string sampleRGs [] = readData(strcat(sample.dir,"/","' + RGfiles + '"));\n\n' +
-              tabs + '# Map all of the read group strings to a file array\n\n' +
-              tabs + '# File array of RG bams to be used by mergesort\n' +
-              tabs + 'file RGalnBams [];\n\n')
-
-    if alignment:
-        FH.write(allStr + alnStr)
-    else:
-        FH.write(allStr)
-
-    return 'inBam'
-
-
-"""
-def printAlignment(FH, tabCount, alignerApp, mergesortApp):
-	''' ggg g '''
-	
-	tabs = tabCount * '\t'
-	
-	Str = (tabs + 'foreach sampleRG, idx in sampleRGs {\n' +
-				tabs + '\t' + 'string rgfile=filename(RGBam);\n' +
-				tabs + '\t' + '# root file name for the RG\n' +
-				tabs + '\t' + 'string RGID = strcut(rgfile, ".*/(.*).bam");\n' +
-				tabs + '\t' + 'string RGname = regexp(RGID, strcat(sample.ID, "."), "");\n\n' +
-		
-				tabs + '\t' + '# Mk read group files\n' +
-				tabs + '\t' + 'file extractRgLog <single_file_mapper; file=strcat(sample.dir,"/",RGID,".extractRg.log")>;\n' +
-				tabs + '\t' + 'file readGroupStr <single_file_mapper; file=strcat(sample.dir,"/",RGID,".readGroup.txt")>;\n' +
-				tabs + '\t' + 'file RGBam <single_file_mapper; file=strcat(sampleRG)>;\n\n' +
-		
-				tabs + '\t' + '# Extract RG here\n' +
-				tabs + '\t' + '(extractRgLog, readGroupStr, RGBam) = SamtoolsExtractRg (inBam,RGID,sample.dir,RGname);\n\n' +
-		
-				tabs + '\t' + '# Step is necessary because the simple mapper does not take array elements as lvalues\n' +
-				tabs + '\t' + '# Changed this to include sample.dir\n' +
-				tabs + '\t' + 'file RGalnBam <single_file_mapper; file=strcat(sample.dir,"/",RGID,".aln.bam")>;\n' +
-				tabs + '\t' + 'file RGalnBai <single_file_mapper; file=strcat(sample.dir,"/",RGID,".aln.bam.bai")>;\n' +
-				tabs + '\t' + 'file RGalnLog <single_file_mapper; file=strcat(sample.dir,"/",RGID,".aln.log")>;\n\n' +
-		
-				tabs + '\t' + '# Converting to fastq will occur within the alignment wrapper\n' +
-				tabs + '\t' + '# Allow Swag to be agnostic about single vs paired-end reads\n' +
-				tabs + '\t' + '(RGalnLog,RGalnBam,RGalnBai) = ' + alignerApp +' (RGBam,readGroupStr,RGID,sample.dir);\n\n' +
-		
-				tabs + '\t' + '# Map realigned file to an array\n' +
-				tabs + '\t' + 'RGalnBams[idx] = RGalnBam;\n' +
-			tabs + '}\n\n' +
-			
-			tabs + '# Read in the names of the contig bams... will be abs filepath\n' +
-			tabs + '# Needs to start as a string array, then mapped to a file array\n' +
-			tabs + '# per parsl language constraint...\n' +
-			tabs + 'file alnSampleContigBamFile <single_file_mapper; file=strcat(sample.dir,"/","sampleContigs.txt")>;\n' +
-			tabs + 'string alnSampleContigBamsStr [] = readData(strcat(sample.dir,"/","sampleContigs.txt"));\n' +
-			tabs + 'file alnSampleContigBams [] <array_mapper; files=alnSampleContigBamsStr>;\n\n' +
-			tabs + 'tracef("%M", alnSampleContigBams[0]);\n' + 
-			
-			tabs + '# Mergesort the readgroups from this sample\n' +
-			tabs + 'file alnSampleBamLog <single_file_mapper;  file=strcat(sample.dir,"/",sample.ID,".RGmerge.log")>;\n\n' +
-			tabs + '(alnSampleBamLog, alnSampleContigBams, alnSampleContigBamFile) = ' + mergesortApp + ' (RGalnBams, sample.ID, sample.dir);\n\n')
-			
-	FH.write(Str)
-	return
-"""
-
-
-def printAlignment(FH, tabCount, alignerApp, mergesortApp):
-    ''' ggg g '''
-
-    tabs = tabCount * '\t'
 
     Str = (tabs + 'foreach sampleRG, idx in sampleRGs {\n' +
            tabs + '\t' + '# root file name for the RG\n' +
@@ -284,29 +206,6 @@ def printAlignment(FH, tabCount, alignerApp, mergesortApp):
     return
 
 
-def printSetup(FH, tabCount, contigsFile, sampleDataFile):
-    ''' sss '''
-
-    tabs = tabCount * '\t'
-
-    Str = (tabs + 'string genomeContigs [] = readData("' + contigsFile + '");\n\n' +
-
-           tabs + '# Just the id with the directory, all files in that directory belong to the same sample\n' +
-           tabs + 'Sample samples [] = readData(strcat("' + sampleDataFile + '"));\n' +
-           tabs + 'foreach sample, sampleIndex in samples {\n\n')
-
-    FH.write(Str)
-    return
-
-
-def closeBracket(FH, tabCount, comment):
-    '''fff'''
-
-    tabs = tabCount * '\t'
-    Str = tabs + '}' + comment + '\n\n'
-
-    FH.write(Str)
-    return
 
 
 def printContigSetup(FH, tabCount, inputBam, inputBamIndex, rmDup):

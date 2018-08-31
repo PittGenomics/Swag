@@ -1,3 +1,4 @@
+import os
 import sys
 from pkg_resources import Requirement, resource_listdir, resource_filename
 
@@ -53,3 +54,17 @@ def parse_config(config_filepath):
                 raise Exception('Config file {} is malformed.'.format(config_filepath))
 
     return config_dict
+
+
+def read_data(filename):
+    """ Read data from a file. 
+
+    :param filename: str Path to the file to read
+    :return: list of str Stripped lines from the file
+    """
+
+    if not os.path.exists(filename):
+        raise IOError("File '{}' not found".format(filename))
+
+    with open(filename, 'r') as f:
+        return [i.strip() for i in f.readlines()]

@@ -2,12 +2,14 @@ import os
 import sys
 import argparse
 import traceback
+import logging
 
 from importlib import import_module
 from pkgutil import iter_modules
 
 from swag.core import commands
 
+logger = logging.getLogger(__name__)
 
 def execute_from_command_line():
     parser = argparse.ArgumentParser(prog='swag')
@@ -25,7 +27,7 @@ def execute_from_command_line():
         subp = subparsers.add_parser(
             command,
             description=description,
-            formatter_class=argparse.RawDescriptionHelpFormatter
+            formatter_class=argparse.RawTextHelpFormatter
         )
         subp.set_defaults(func=module.main)
         module.populate_parser(subp)
@@ -37,12 +39,25 @@ def execute_from_command_line():
         parser.print_help()
         sys.exit()
 
-    try:
-        args.func(vars(args))
-    except Exception as e:
-        # TODO More helpful error messages
-        sys.stderr.write('An error occured:\n{}\n'.format(repr(e)))
-        if args.debug:
-            sys.stderr.write('\nTraceback:\n')
-            _, _, tb = sys.exc_info()
-            traceback.print_tb(tb)
+    level = logging.INFO
+    if args.debug:
+        level = logging.DEBUG
+    logger.setLevel(level)
+    format = "%(asctime)s %(name)s:%(lineno)d [%(levelname)s]  %(message)s"
+    formatter = logging.Formatter(format, datefmt='%Y-%m-%d %H:%M:%S')
+    console = logging.StreamHandler()
+    console.setFormatter(formatter)
+    logger.addHandler(console)
+
+    # logger.info("saving log to {0}".format(os.path.join(cfg.workdir, fn)))
+    # if not os.path.isdir(cfg.workdir):
+    #     os.makedirs(cfg.workdir)
+    # fileh = logging.handlers.RotatingFileHandler(os.path.join(cfg.workdir, fn), maxBytes=100e6, backupCount=10)
+    # fileh.setFormatter(formatter)
+    # fileh.setLevel(logging.INFO)
+    # for p in args.plugin.blacklisted_logs():
+    #     fileh.addFilter(util.InvertedFilter('lobster.' + p))
+    # args.preserve.append(fileh.stream)
+    # logger.addHandler(fileh)
+
+    args.func(args)

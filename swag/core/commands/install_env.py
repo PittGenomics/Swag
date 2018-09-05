@@ -40,20 +40,20 @@ def main(args=None):
     if not args:
         parser = argparse.ArgumentParser(prog='swag install-env')
         populate_parser(parser)
-        args = vars(parser.parse_args())
+        args = parser.parse_args()
 
     # Ensure conda is installed
     check_conda_cmd = '{conda} >/dev/null 2>/dev/null'.format(
-        conda=args['conda_path'] or 'conda'
+        conda=args.conda_path or 'conda'
     )
     if subprocess.call(check_conda_cmd, shell=True) != 0:
         print('\'conda\' executable not found, please install it before proceeding by '
               'visiting https://conda.io/miniconda.html')
         sys.exit(1)
-    conda_path = args['conda_path'] or subprocess.check_output('which conda', shell=True).strip().decode()
+    conda_path = args.conda_path or subprocess.check_output('which conda', shell=True).strip().decode()
 
     # Get information about environment
-    conda_env_name = args['name'] or 'swag_{}'.format(datetime.now().strftime('%d%b%Y'))
+    conda_env_name = args.name or 'swag_{}'.format(datetime.now().strftime('%d%b%Y'))
     packages = [p['bioconda_tag'] for p in SwagSupported.conda_install_packages]
 
     # Check for current channels with conda config --show-sources
@@ -80,7 +80,7 @@ def main(args=None):
     conda_env_dir = get_conda_env_location(conda_path, conda_env_name)
 
     # Write out executables config
-    with open(args['exe_config_location'], 'w') as exe_config:
+    with open(args.exe_config_location, 'w') as exe_config:
         # Write out header
         exe_config.write('#' * 15 + '\n')
         exe_config.write('# executables\n')

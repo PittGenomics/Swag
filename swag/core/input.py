@@ -158,8 +158,7 @@ def create_germline_samples_file(germline_samples_filepath, inputdata_symlinks):
 
         # Write out entry for each patient path
         for inputdata_dir, inputdata_file in six.iteritems(inputdata_symlinks_dir_file_map):
-            # TODO Remove trailing slash after debugging
-            germline_samples.write('{id} {dir}/\n'.format(
+            germline_samples.write('{id} {dir}\n'.format(
                 id=os.path.splitext(inputdata_file)[ROOT],
                 dir=inputdata_dir
             ))
@@ -216,8 +215,7 @@ def create_tn_patients_map_file(tn_patients_map_filepath, patient_id_relpaths):
         # Map each patient id relative path to the patient id
         for patient_id_relpath in patient_id_relpaths:
             patient_id = patient_id_relpath.split('/')[PATIENT_NAME]
-            # TODO Remove trailing slash after debugging
-            tn_samples.write('{patient_id} {patient_id_relpath}/\n'.format(
+            tn_samples.write('{patient_id} {patient_id_relpath}\n'.format(
                 patient_id=patient_id,
                 patient_id_relpath=patient_id_relpath
             ))
@@ -336,7 +334,6 @@ def process_samples(inputdata_type, inputdata_filepaths, data_root, analysis_roo
         tn_inputdata_map = create_tn_inputdata_map(inputdata_symlinks)
 
         # Create the mapping file from patient id relative paths to patient ids
-        # TODO Remove extra slash
         create_tn_patients_map_file(
             tn_patients_map_filepath=os.path.join(analysis_root, SwagStrings.patient_out_filename),
             patient_id_relpaths=tn_inputdata_map.keys()

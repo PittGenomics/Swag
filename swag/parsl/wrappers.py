@@ -620,8 +620,6 @@ def compose_IndexBam(app_name, **kwargs):
 
 
 def compose_PicardMarkDuplicates(app_name, **kwargs):
-    """dd"""
-
     exe_config = kwargs.get('exe_config')
 
     wrapper = ('#!/bin/bash\n\n'
@@ -635,7 +633,7 @@ def compose_PicardMarkDuplicates(app_name, **kwargs):
            'ID=$5\n'
            'dir=$6\n\n'
 
-           'tmpDir=$(pwd)/${ID}/PicardMarkDupl\n'
+           'tmpDir=' + kwargs.get('tmp_dir') + '/${ID}/PicardMarkDupl\n'
            'mkdir -p -v $tmpDir\n\n'
 
            'export PATH=' + kwargs.get('env_PATH') + '\n\n'
@@ -817,7 +815,7 @@ def compose_ContigMergeSort(app_name, **kwargs):
         '{hostname_info}\n\n'
         
         # 'tmpDir=$(pwd)/${{ID}}/NovoSortMergeSort\n'
-        'tmpDir=$(pwd)/${{ID}}/SambambaMergeSort\n'
+        'tmpDir={tmp_dir}/${{ID}}/SambambaMergeSort\n'
         'mkdir -p -v $tmpDir\n\n'
         
         '# Will check if bam has data in it\n'
@@ -1353,6 +1351,7 @@ def compose_BwaMem(app_name, **kwargs):
     exe_config = kwargs.get('exe_config')
     ref_config = kwargs.get('ref_config')
 
+
     wrapper = (
         '#!/bin/bash\n\n'
 
@@ -1369,7 +1368,7 @@ def compose_BwaMem(app_name, **kwargs):
         'export LD_LIBRARY_PATH={env_LD_LIBRARY_PATH}\n\n'
         
         # 'tmpDir=$(pwd)/${{ID}}/NovoSortBwa\n'
-        'tmpDir=$(pwd)/${{ID}}/SambambaBwa\n'
+        'tmpDir={tmp_dir}/${{ID}}/SambambaBwa\n'
         'mkdir -p -v $tmpDir\n\n'
         
         '{hostname_info}\n\n'

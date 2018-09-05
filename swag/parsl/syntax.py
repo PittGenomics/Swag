@@ -1,3 +1,8 @@
+import logging
+import os
+
+from swag.core import SwagStrings
+from swag.util import read_data
 ######################
 # COMMENTS / To-do
 ######################
@@ -5,6 +10,7 @@
 # subset this by analysis type at a later date
 # All of these functions could be cleaned up and proper comments added
 
+logger = logging.getLogger(__name__)
 
 def printGrpFilenames(FH, tabCount):
     ''' fff '''
@@ -171,92 +177,76 @@ def printDellyApp(FH, tabCount, genoBam, genoBamIndex):
 
 
 
-    Str = (tabs + 'foreach sampleRG, idx in sampleRGs {\n' +
-           tabs + '\t' + '# root file name for the RG\n' +
-           tabs + '\t' + 'string RGID = strcut(sampleRG, ".*/(.*).bam");\n' +
-           tabs + '\t' + 'string RGname = regexp(RGID, strcat(sample.ID, "."), "");\n\n' +
+def align(in_bam, work_dir, aligner_app, mergesort_app, sample_id, sample_dir):
+    ## Align read groups and merge-sort
+    sample_RGs = read_data(os.path.join(sample_dir, SwagStrings.readgroups_out_filename))
+    RG_align_bams = [] # RG bams to be used by mergesort
 
-           tabs + '\t' + '# Step is necessary because the simple mapper does not take array elements as lvalues\n' +
-           tabs + '\t' + '# Changed this to include sample.dir\n' +
-           tabs + '\t' + 'file RGalnBam <single_file_mapper; file=strcat(sample.dir,"/",RGID,".aln.bam")>;\n' +
-           tabs + '\t' + 'file RGalnBai <single_file_mapper; file=strcat(sample.dir,"/",RGID,".aln.bam.bai")>;\n' +
-           tabs + '\t' + 'file RGalnLog <single_file_mapper; file=strcat(sample.dir,"/",RGID,".aln.log")>;\n\n' +
+    for sample_RG in sample_RGs:
+        RG_id = sample_RG.rsplit('/', 1)[1].strip('.bam')
+        RG_name = RG_id.rsplit('.', 1)[1]
 
-           tabs + '\t' + '# Converting to fastq will occur within the alignment wrapper\n' +
-           tabs + '\t' + '# Allow Swag to be agnostic about single vs paired-end reads\n' +
-           tabs + '\t' + '(RGalnLog,RGalnBam,RGalnBai) = ' + alignerApp + ' (inBam,RGname,RGID,sample.dir);\n\n' +
+        RG_align_bam = os.path.join(sample_dir, "{}.aln.bam".format(RG_id))
+        RG_align_log = os.path.join(sample_dir, "{}.aln.log".format(RG_id))
+        RG_align_bai = os.path.join(sample_dir, "{}.aln.bam.bai".format(RG_id))
 
-           tabs + '\t' + '# Map realigned file to an array\n' +
-           tabs + '\t' + 'RGalnBams[idx] = RGalnBam;\n' +
-           tabs + '}\n\n' +
+        future = aligner_app(
+            work_dir,
+            in_bam,
+            RG_name,
+            sample_id,
+            sample_dir, 
+            outputs=[RG_align_bam, RG_align_log, RG_align_bai]
+        )
 
-           tabs + '# Read in the names of the contig bams... will be abs filepath\n' +
-           tabs + '# Needs to start as a string array, then mapped to a file array\n' +
-           tabs + '# per parsl language constraint...\n' +
-           tabs + 'file alnSampleContigBamFile <single_file_mapper; file=strcat(sample.dir,"/","sampleContigs.txt")>;\n' +
-           tabs + 'string alnSampleContigBamsStr [] = readData(strcat(sample.dir,"/","sampleContigs.txt"));\n' +
-           tabs + 'file alnSampleContigBams [] <array_mapper; files=alnSampleContigBamsStr>;\n\n' +
-           tabs + 'tracef("%M", alnSampleContigBams[0]);\n' +
+        RG_align_bams.append(future.outputs[0])
 
-           tabs + '# Mergesort the readgroups from this sample\n' +
-           tabs + 'file alnSampleBamLog <single_file_mapper;  file=strcat(sample.dir,"/",sample.ID,".RGmerge.log")>;\n\n' +
-           tabs + '(alnSampleBamLog, alnSampleContigBams, alnSampleContigBamFile) = ' + mergesortApp + ' (RGalnBams, sample.ID, sample.dir);\n\n')
+    alnSampleBamLog = os.path.join(sample_dir, '{}.RGmerge.log'.format(sample_id))
+    alnSampleContigBamFile = os.path.join(sample_dir, "sampleContigs.txt")
+    alnSampleContigBams = read_data(alnSampleContigBamFile)
 
-    FH.write(Str)
-    return
+    futures = mergesort_app(
+        work_dir,
+        sample_id,
+        sample_dir,
+        inputs=RG_align_bams,
+        outputs=[alnSampleContigBamFile, alnSampleBamLog] + alnSampleContigBams,
+        stdout=alnSampleBamLog + '.stdout',
+        stderr=alnSampleBamLog + '.stderr'
+    )
+
+    return futures.outputs[2:]
 
 
+def picard_mark_duplicates(work_dir, in_bam, contig, sample_id, sample_dir):
+    from swag.parsl.apps import PicardMarkDuplicates
+
+    contigID = "{}.{}".format(sample_id, contig)
+    contigDupLog = "{0}/{1}.contig.dup.log".format(sample_dir, contigID)   
+    contigDupBam = "{0}/{1}.contig.dup.bam".format(sample_dir, contigID)
+    contigDupMetrics = "{0}/{1}.contig.dup.metrics".format(sample_dir, contigID)
+
+    future = PicardMarkDuplicates(
+        work_dir,
+        in_bam,
+        contigID,
+        sample_dir,
+        outputs=[contigDupLog, contigDupBam, contigDupMetrics],
+    )
+
+    return future.outputs[1]
 
 
-def printContigSetup(FH, tabCount, inputBam, inputBamIndex, rmDup):
-    '''This needs to be able to handle GATK post-processing as well
+def index_bam(work_dir, in_bam):
+    from swag.parsl.apps import IndexBam
 
-    !!!!!!!!!!!!!!!!!!!!!!! NEEDS REFINEMENT !!!!!!!!!!!!!!!!!!!!!!!
+    contigIndexStr = in_bam.filepath;
+    contigDupBamBai = "{}.bai".format(contigIndexStr)
+    contigDupBamBaiLog = "{}.bai.log".format(contigIndexStr)
 
-    Does not look like that switch is properly implemented'''
+    future = IndexBam(work_dir, in_bam, outputs=[contigDupBamBaiLog, contigDupBamBai])
 
-    tabs = tabCount * '\t'
-
-    # Temporary
-    alignment = True
-
-    if alignment:
-        contigBam = 'alnSampleContigBams[idx]'
-    else:
-        contigBam = 'contigBam'
-
-    Str = (tabs + 'file[string] contigBams;\n' +
-           tabs + 'file[string] contigBamsIndex;\n\n' +
-
-           tabs + '# Processed (genotyping ready) contig bams will be stored here\n' +
-           tabs + 'foreach contigName, idx in genomeContigs {\n' +
-           tabs + '\t' + '# id for each contig\n' +
-           tabs + '\t' + '# ".aln" has been removed to improve flexibility\n' +
-           tabs + '\t' + 'string contigID = strcat(sample.ID,".",contigName);\n\n')
-
-    """
-    # Keep this around for if genotyping
-    tabs + '\t' + '# split into contig\n' +
-    tabs + '\t' + '# Might be helpful to generate the index here\n' +
-    tabs + '\t' + 'file contigBam <single_file_mapper; file=strcat(sample.dir,"/",contigID,".contig.bam")>;\n' +
-    tabs + '\t' + 'file contigBamLog <single_file_mapper; file=strcat(sample.dir,"/",contigID,".contig.log")>;\n' +
-    tabs + '\t' + '(contigBamLog,contigBam) = SamtoolsParseContig (' + inputBam + ',' + inputBamIndex + ',contigID,sample.dir,contigName);\n\n')
-    """
-
-    rmDupStr = (tabs + '\t' + '# rm dup\n' +
-                tabs + '\t' + 'file contigDupLog <single_file_mapper; file=strcat(sample.dir,"/",contigID,".contig.dup.log")>;\n' +
-                tabs + '\t' + 'file contigDupBam <single_file_mapper; file=strcat(sample.dir,"/",contigID,".contig.dup.bam")>;\n' +
-                tabs + '\t' + 'file contigDupMetrics <single_file_mapper; file=strcat(sample.dir,"/",contigID,".contig.dup.metrics")>;\n' +
-                tabs + '\t' + '(contigDupLog,contigDupBam,contigDupMetrics) = PicardMarkDuplicates (' + contigBam + ',contigID,sample.dir);\n\n')
-
-    if rmDup:
-        outputBam = 'contigDupBam'
-        FH.write(Str + rmDupStr)
-    else:
-        outputBam = contigBam
-        FH.write(Str)
-
-    return outputBam
+    return future.outputs[1]
 
 
 def printQualityControl(FH, tabCount, QCBam, sampleDir, sampleID, apps):
@@ -290,19 +280,23 @@ def printQualityControl(FH, tabCount, QCBam, sampleDir, sampleID, apps):
     return
 
 
-def printContigMergeSort(FH, tabCount, bamArrayName, name, sampleDir, sampleID):
-    ''' ddd '''
+def contig_merge_sort(work_dir, bams, sample_dir, sample_id):
+    from swag.parsl.apps import ContigMergeSort
 
-    tabs = tabCount * '\t'
+    genoMergeBamIndex = "{}/{}.geno.merged.bam.bai".format(sample_dir, sample_id)
+    genoMergeBam = "{}/{}.geno.merged.bam".format(sample_dir, sample_id)
+    genoMergeLog = "{}/{}.geno.merged.log".format(sample_dir, sample_id)
 
-    Str = (tabs + '# Mergesort the ' + name + ' contig bams\n' +
-           tabs + 'file ' + name + 'MergeBamIndex <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".' + name + '.merged.bam.bai")>;\n' +
-           tabs + 'file ' + name + 'MergeBam <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".' + name + '.merged.bam")>;\n' +
-           tabs + 'file ' + name + 'MergeLog <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".' + name + '.merged.log")>;\n' +
-           tabs + '(' + name + 'MergeLog,' + name + 'MergeBam,' + name + 'MergeBamIndex) = ContigMergeSort (' + bamArrayName + ',' + sampleID + ',' + sampleDir + ');\n\n')
+    future = ContigMergeSort(
+        work_dir,
+        sample_id,
+        sample_dir,
+        inputs=bams,
+        outputs=[genoMergeLog, genoMergeBam, genoMergeBamIndex]
+    )
 
-    FH.write(Str)
-    return (name + 'MergeBam')
+    return future.outputs[1], future.outputs[2]
+
 
 
 def getContigMergeSort(tabCount, bamArrayName, name, sampleDir, sampleID):

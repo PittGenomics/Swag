@@ -22,6 +22,8 @@ from datetime import datetime
 from multiprocessing import cpu_count
 from tempfile import gettempdir
 
+import parsl
+
 import swag.util
 import swag.parsl.wrappers
 from swag.core.config import SwagConfig, load_config
@@ -56,6 +58,7 @@ def main(args=None):
         args = parser.parse_args()
 
     config = load_config(args.config)
+    parsl.load(config.parsl_config)
 
     # Make sure appropriate environment variables are present
     for environ_var in ('PATH', 'LD_LIBRARY_PATH'):

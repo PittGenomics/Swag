@@ -1,6 +1,7 @@
 from importlib.util import spec_from_file_location, module_from_spec
 import logging
 from multiprocessing import cpu_count
+import os
 from tempfile import gettempdir
 
 from libsubmit.utils import RepresentationMixin
@@ -49,7 +50,7 @@ class SwagConfig(RepresentationMixin):
                  cores_per_node=cpu_count(),
                  tasks_per_node=8,
                  ram_per_node=29000,
-                 tmp=gettempdir(),
+                 tmp=os.path.join(gettempdir(), os.environ['USER']),
                  worker_use_tmp=True,
                  parsl_config=config):
         self.data = data

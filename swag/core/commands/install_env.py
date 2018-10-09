@@ -117,7 +117,7 @@ def main(args=None):
                 exe_config.write('{name}={path}\n'.format(name=exec_key, path=exe_path))
 
             if 'post_hook' in package_config:
-                package_config['post_hook'](conda_env_dir, **args)
+                package_config['post_hook'](conda_env_dir, **vars(args))
 
 
 if __name__ == '__main__':

@@ -74,7 +74,7 @@ def main(args=None):
     mkdirs(os.path.join(os.getcwd(), SwagStrings.worker_logging_dir))
 
     # Get current directory and parse configs
-    work_dir = os.getcwd()  # Absolute path
+    work_dir = os.path.abspath(os.getcwd())  # Absolute path
     exe_config = swag.util.parse_config(config.exe_config)
     ref_config = swag.util.parse_config(config.ref_config)
     # Makes a new dir in the current directory called 'wrappers'

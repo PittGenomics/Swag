@@ -186,23 +186,24 @@ def align(in_bam, work_dir, aligner_app, mergesort_app, sample_id, sample_dir):
         RG_id = sample_RG.rsplit('/', 1)[1].strip('.bam')
         RG_name = RG_id.rsplit('.', 1)[1]
 
-        RG_align_bam = os.path.join(sample_dir, "{}.aln.bam".format(RG_id))
-        RG_align_log = os.path.join(sample_dir, "{}.aln.log".format(RG_id))
-        RG_align_bai = os.path.join(sample_dir, "{}.aln.bam.bai".format(RG_id))
-
+        RG_align_bam = os.path.abspath(os.path.join(sample_dir, "{}.aln.bam".format(RG_id)))
+        RG_align_log = os.path.abspath(os.path.join(sample_dir, "{}.aln.log".format(RG_id)))
+        RG_align_bai = os.path.abspath(os.path.join(sample_dir, "{}.aln.bam.bai".format(RG_id)))
         future = aligner_app(
             work_dir,
             in_bam,
             RG_name,
             sample_id,
-            sample_dir, 
-            outputs=[RG_align_bam, RG_align_log, RG_align_bai]
+            sample_dir,
+            outputs=[RG_align_bam, RG_align_log, RG_align_bai],
+            stdout=RG_align_log + '.stdout',
+            stderr=RG_align_log + '.stderr'
         )
 
         RG_align_bams.append(future.outputs[0])
 
-    alnSampleBamLog = os.path.join(sample_dir, '{}.RGmerge.log'.format(sample_id))
-    alnSampleContigBamFile = os.path.join(sample_dir, "sampleContigs.txt")
+    alnSampleBamLog = os.path.abspath(os.path.join(sample_dir, '{}.RGmerge.log'.format(sample_id)))
+    alnSampleContigBamFile = os.path.abspath(os.path.join(sample_dir, "sampleContigs.txt"))
     alnSampleContigBams = read_data(alnSampleContigBamFile)
 
     futures = mergesort_app(
@@ -221,8 +222,9 @@ def align(in_bam, work_dir, aligner_app, mergesort_app, sample_id, sample_dir):
 def picard_mark_duplicates(work_dir, in_bam, contig, sample_id, sample_dir):
     from swag.parsl.apps import PicardMarkDuplicates
 
+    sample_dir = os.path.abspath(sample_dir)
     contigID = "{}.{}".format(sample_id, contig)
-    contigDupLog = "{0}/{1}.contig.dup.log".format(sample_dir, contigID)   
+    contigDupLog = "{0}/{1}.contig.dup.log".format(sample_dir, contigID)
     contigDupBam = "{0}/{1}.contig.dup.bam".format(sample_dir, contigID)
     contigDupMetrics = "{0}/{1}.contig.dup.metrics".format(sample_dir, contigID)
 

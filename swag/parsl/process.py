@@ -20,6 +20,7 @@ def germline(workflow, work_dir, contigs_file, out_dir):
         samples = list(csv.DictReader(f, delimiter=' '))
 
     for sample in samples:
+        sample['dir'] = os.path.abspath(sample['dir'])
         ########################################################################
         ## Aligment
         ########################################################################
@@ -37,7 +38,7 @@ def germline(workflow, work_dir, contigs_file, out_dir):
                 work_dir=work_dir,
                 aligner_app=getattr(swag.parsl.apps, workflow.aligner),
                 mergesort_app=getattr(swag.parsl.apps, SwagStrings.generate_sort_app),
-                sample_dir=sample['dir'],
+                sample_dir=os.path.abspath(sample['dir']),
                 sample_id=sample['ID']
             )
 

@@ -149,7 +149,7 @@ class Workflow(object):
     def validate(self):
         '''Iterate through all fields of the json. Use possibleApps.py to
         determine if all fields are valid
-        
+
         Go all the way down to applications... be sure all fields in params
         & walltime dict are strings. And be sure walltime dict only has len == 1 '''
 

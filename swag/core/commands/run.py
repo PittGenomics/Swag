@@ -58,7 +58,6 @@ def main(args=None):
         args = parser.parse_args()
 
     config = load_config(args.config)
-    parsl.load(config.parsl_config)
 
     # Make sure appropriate environment variables are present
     for environ_var in ('PATH', 'LD_LIBRARY_PATH'):
@@ -115,6 +114,8 @@ def main(args=None):
     }
     workflow_wrappers_options.update(util_scripts)
     compose_workflow_wrappers(workflow, **workflow_wrappers_options)
+
+    parsl.load(config.parsl_config)
 
     # Gather input files
     swag.util.message_to_screen('Gathering input files and read group information...', banner=True)

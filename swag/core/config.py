@@ -4,7 +4,7 @@ from multiprocessing import cpu_count
 import os
 from tempfile import gettempdir
 
-from libsubmit.utils import RepresentationMixin
+from parsl.utils import RepresentationMixin
 from parsl.configs.local_threads import config
 
 from swag.util.path import is_valid_dir, is_valid_file, is_valid_tmp_dir

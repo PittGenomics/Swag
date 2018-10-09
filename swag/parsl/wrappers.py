@@ -1355,7 +1355,7 @@ def compose_BwaMem(app_name, **kwargs):
     wrapper = (
         '#!/bin/bash\n\n'
 
-        'set -e\n\n'
+        'set -ex\n\n'
 
         'inBam=$1\n'
         'outBam=$2\n'

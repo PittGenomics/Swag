@@ -1392,9 +1392,6 @@ def compose_BwaMem(app_name, **kwargs):
         '\trm -f $fastq1\n'
         '\trm -f $fastq2\n\n'
         
-        '\tmkfifo $fastq1\n'
-        '\tmkfifo $fastq2\n\n'
-        
         '\t# Unpaired fastq will be discarded into /dev/null\n'
         '\t{exe_samtools} view -b -r $RGname $inBam 2>> $logFile | {exe_bamutil} bam2FastQ --in -.bam --noeof '
             '--firstOut $fastq1 --secondOut $fastq2 --unpairedOut /dev/null 2>> $logFile &\n\n'
@@ -1420,7 +1417,6 @@ def compose_BwaMem(app_name, **kwargs):
         
         '\t# Single end data... make named pipes\n'
         '\trm -f $fastq\n'
-        '\tmkfifo $fastq\n\n'
         
         '\t# end 1 and end 2 fastq will be discarded into /dev/null\n'
         '\t{exe_samtools} view -b -r $RGname $inBam 2>> $logFile | {exe_bamutil} bam2FastQ --in -.bam --noeof '
@@ -1845,7 +1841,6 @@ def compose_BamutilPerBaseCoverage(app_name, **kwargs):
 
            '# remove and then create named pipe\n'
            'rm -f $tmpPerBaseCov\n'
-           'mkfifo $tmpPerBaseCov\n\n'
 
            '# Generate per base coverage and stream into cut\n'
            + exe_config['bamutil'] + ' stats --cBaseQC $tmpPerBaseCov --regionsList ' + ref_config[

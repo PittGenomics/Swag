@@ -2,7 +2,7 @@ from parsl.app.app import bash_app
 from swag.core import SwagStrings
 
 @bash_app
-def BwaMem(work_dir, in_bam, RG_name, id, dir, outputs=[], stdout=None, stderr=None):
+def BwaMem(work_dir, bam, RG_name, sample, dir, outputs=[], stdout=None, stderr=None):
     import os
     executable = os.path.join(work_dir, SwagStrings.wrapper_dir, 'BwaMem.sh')
 
@@ -10,19 +10,19 @@ def BwaMem(work_dir, in_bam, RG_name, id, dir, outputs=[], stdout=None, stderr=N
 
 
 @bash_app
-def RgMergeSort(work_dir, id, dir, inputs=[], outputs=[], stdout=None, stderr=None):
+def RgMergeSort(work_dir, sample, dir, inputs=[], outputs=[], stdout=None, stderr=None):
     """
     inputs: RGalnBams
     outputs: [alnSampleContigBamFile, alnSampleBamLog, alnSampleContigBams....]
     """
     import os
     executable = os.path.join(work_dir, SwagStrings.wrapper_dir, 'RgMergeSort.sh')
-    in_bams = ' '.join([str(i) for i in inputs])
+    bams = ' '.join([str(i) for i in inputs])
 
-    return executable + ' {outputs[0]} {outputs[1]} {1} {2} ' + in_bams
+    return executable + ' {outputs[0]} {outputs[1]} {1} {2} ' + bams
 
 @bash_app
-def PicardMarkDuplicates(work_dir, in_bam, id, dir, outputs=[], stdout=None, stderr=None):
+def PicardMarkDuplicates(work_dir, bam, sample, dir, outputs=[], stdout=None, stderr=None):
     """
     outputs = [file logFile, file outBam, file outBamMetrics]
     """
@@ -32,7 +32,7 @@ def PicardMarkDuplicates(work_dir, in_bam, id, dir, outputs=[], stdout=None, std
     return executable + ' {1} {outputs[1]} {outputs[0]} {outputs[2]} {2} {3}'
 
 @bash_app
-def IndexBam(work_dir, in_bam, outputs=[], stdout=None, stderr=None):
+def IndexBam(work_dir, bam, outputs=[], stdout=None, stderr=None):
     """
     outputs = [file logFile, file outIndex]
     """
@@ -42,7 +42,7 @@ def IndexBam(work_dir, in_bam, outputs=[], stdout=None, stderr=None):
     return executable + ' {1} {outputs[1]} {outputs[0]}'
 
 @bash_app
-def ContigMergeSort(work_dir, id, dir, inputs=[], outputs=[], stdout=None, stderr=None):
+def ContigMergeSort(work_dir, sample, dir, inputs=[], outputs=[], stdout=None, stderr=None):
     """
     outputs = [file logFile, file outBam, file outBamBai]
     """

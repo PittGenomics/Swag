@@ -1,8 +1,3 @@
 """
-The modules and classes in swag.parsl have to do with writing out parsl code.
+Code pertaining to interacting with the Parsl parallel scripting library.
 """
-def printParslApps():
-    pass
-
-def printCustomStructs():
-    pass

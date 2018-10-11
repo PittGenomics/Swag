@@ -40,9 +40,7 @@ def compose_workflow_wrappers(workflow, **wrapper_config):
     apps_in_workflow = workflow.programs_in_workflow
     for app_name, app_config in six.iteritems(apps_in_workflow):
         compose_wrapper = getattr(swag.parsl.wrappers, 'compose_{}'.format(app_name))
-        # print_wrapper = customApps[app_name]['print']  # custom apps
         compose_wrapper(app_name=app_name, app_parameters=app_config['params'], **wrapper_config)
-
 
 def params_to_string(param_dict, sep):
     """
@@ -119,7 +117,7 @@ class Workflow(object):
     def __init__(self, workflow_config):
         """
         Needs to contain the following variables
-        
+
         runType, dataType, genotypers, structVarCallers, gatk, rmDup
         """
         self.workflow_config = workflow_config

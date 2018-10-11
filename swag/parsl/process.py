@@ -1,11 +1,13 @@
+import collections
 import csv
 import os
 
+import parsl
+
 from swag.core import SwagStrings
-from swag.parsl import printParslApps, printCustomStructs
 from swag.parsl.syntax import *
 from swag.util import read_data
-import swag.parsl.apps
+from swag.parsl.apps import *
 
 logger = logging.getLogger(__name__)
 
@@ -201,15 +203,6 @@ def tumor_normal(workflow, work_dir, contigsFileFp, out_dir):
 
     #parsl_script_path = os.path.join(work_dir, SwagStrings.parsl_script_filename)
     #with open(parsl_script_path, 'w') as parsl_script:
-      #  ########################################################################
-      #  ## Print out Parsl syntax
-      #  ########################################################################
-      #  # print the apps to parsl file
-      #  printParslApps(parsl_script)
-      #  # write custom structs to file
-      #  # True indicates a paired run
-      #  printCustomStructs(parsl_script, paired=True)
-
       #  # Map Strelka config
       #  if 'Strelka' in workflow.genotypers:
       #      parsl_script.write(

@@ -9,28 +9,6 @@ needed for the underlying algorithms to run """
 # TODO - look into adding a random number to the tmp dirs - currentl there
 #		is a possibility for conflicts
 
-# Each wrapper has a fixed output name
-# Names of the wrappers present in functions below
-# Parsl function names should be the same minus the ...'.sh'
-"""
-GatkIndelRealn.sh
-GatkBqsrGrp.sh
-GatkBqsrPrint.sh
-GatkBqsrGrpReduce.sh
-BamUtilRgSplit.sh
-Flagstat.sh
-PicardMarkDuplicates.sh
-GetCoverage.sh
-Novosort.sh
-ConcatVcf.sh
-SamtoolsParseContig.sh
-DellyCaller.sh
-SnpEff.sh
-BwaAlnBam2fastq.sh
-PlatypusGerm.sh
-HaplotypeCaller.sh
-"""
-
 
 EXECUTABLE_BITS = 73  # 0b 001 001 001
 

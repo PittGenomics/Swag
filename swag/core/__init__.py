@@ -166,15 +166,14 @@ class SwagSupported(object):
         'programs': {
             # 'gatk_post-processing': {'GatkIndelRealignment', 'GatkBqsr'},
             'aligner': {'Bowtie2', 'BwaMem', 'novoalign'},
-            # 'aligner': {'BwaAln', 'BwaMem', 'Bowtie2'},  OLD
-            # 'genotyper': {
-            #     'PlatypusPaired', 'PlatypusGerm', 'HaplotypeCaller', 'Mutect',
-            #     'MpileupPaired', 'UnifiedGenotyper', 'ScalpelPaired', 'ScalpelGerm',
-            #     'Strelka', 'Varscan'
-            # },
+            'genotyper': {
+                'PlatypusPaired', 'PlatypusGerm', 'HaplotypeCaller', 'Mutect',
+                'MpileupPaired', 'UnifiedGenotyper', 'ScalpelPaired', 'ScalpelGerm',
+                'Strelka', 'Varscan'
+            },
             # 'structural_variant_caller': {'DellyGerm', 'DellyPaired', 'LumpyGerm', 'LumpyPaired'},
             'duplicate_marking': {'PicardMarkDuplicates'},
-            # 'bam_quality_control': {'SamtoolsFlagstat', 'BedtoolsGenomeCoverage', 'BamutilPerBaseCoverage'},
+            'bam_quality_control': {'samtools_flagstat', 'BedtoolsGenomeCoverage', 'BamutilPerBaseCoverage'},
             # This is here because java has a different way of taking command line arguments
             'java': {'PicardMarkDuplicates'},
             'bam_metrics': {'genomeCoverageBed'},
@@ -184,19 +183,16 @@ class SwagSupported(object):
             'tn_structural_variants': {'DellyPaired'}
         },
         'types': {
-            'run': {'alignment', 'variant_calling', 'alignment_and_variant_calling'},
+            'run': {'alignment', 'variant_calling', 'alignment_and_genotyping'},
             'data': {'germline', 'tumor_normal'},
             'program': {
                 'aligner', 'bam_metrics', 'duplicate_marking', 'germline_short_variants',
-                'germline_structural_variants', 'tn_short_variants', 'tn_structural_variants'
+                'germline_structural_variants', 'tn_short_variants', 'tn_structural_variants',
+                'genotyper', 'bam_quality_control'
             },
-            # 'program': {    OLD
-            #     'aligner', 'genotyper', 'structural_variant_caller',
-            #     'gatk_post-processing', 'duplicate_removal', 'bam_quality_control'
-            # }
         },
         'flags': {
-            'alignment_and_variant_calling': (True, True),
+            'alignment_and_genotyping': (True, True),
             'alignment': (True, False),
             'variant_calling': (False, True)
         },
@@ -318,11 +314,10 @@ class SwagApps(object):
         'Strelka': {
             'name': 'Strelka',
             'walltime': '20:00:00', 'pool': 'RAM'},
-        'SamtoolsFlagstat': {
-            'name': 'SamtoolsFlagstat',
+        'samtools_flagstat': {
+            'name': 'samtools_flagstat',
             'exclusion': None,
-
-                             'walltime': '06:00:00', 'pool': 'primary'},
+            'walltime': '06:00:00', 'pool': 'primary'},
         'BedtoolsGenomeCoverage': {
             'name': 'BedtoolsGenomeCoverage',
             'exclusion': None,

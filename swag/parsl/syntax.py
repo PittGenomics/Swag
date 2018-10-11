@@ -3,6 +3,7 @@ import os
 
 from swag.core import SwagStrings
 from swag.util import read_data
+import swag.parsl.apps
 ######################
 # COMMENTS / To-do
 ######################
@@ -90,24 +91,6 @@ def printDualVcfArray(FH, tabCount, genotyper):
     FH.write(Str)
     return
 
-
-def printGenotyperApp(FH, tabCount, genotyper, genoBam, genoBamIndex):
-    ''' fff
-    For specific apps we may need to allow more files to be returned....
-    particularly for somatic genotypers'''
-
-    tabs = tabCount * '\t'
-
-    Str = (
-        tabs + 'file ' + genotyper + 'ContigVcf <single_file_mapper; file=strcat(sample.dir,"/",contigID,segmentSuffix,".' + genotyper + '.vcf")>;\n' +
-        tabs + 'file ' + genotyper + 'ContigVcfLog <single_file_mapper; file=strcat(sample.dir,"/",contigID,segmentSuffix,".' + genotyper + '.log")>;\n' +
-        tabs + '(' + genotyper + 'ContigVcfLog,' + genotyper + 'ContigVcf) = ' + genotyper + ' (' + genoBam + ',' + genoBamIndex + ',contigID,sample.dir,coords);\n\n' +
-
-        tabs + '# Append contig vcfs to array\n' +
-        tabs + genotyper + 'ContigVcfs << ' + genotyper + 'ContigVcf;\n\n')
-
-    FH.write(Str)
-    return
 
 
 def printReduceVcfApp(FH, tabCount, genotyper, sampleDir, sampleID):
@@ -218,125 +201,29 @@ def align(in_bam, work_dir, aligner_app, mergesort_app, sample_id, sample_dir):
 
     return futures.outputs[2:]
 
+def perform_quality_control(work_dir, bam, sample_dir, sample_id, app_names):
+    apps = [getattr(swag.parsl.apps, a) for a in app_names]
+    for app in apps:
+        app(work_dir, bam, sample_id, sample_dir)
 
-def picard_mark_duplicates(work_dir, in_bam, contig, sample_id, sample_dir):
-    from swag.parsl.apps import PicardMarkDuplicates
+def single_sample_genotype(work_dir, genotyper, contig, segment, ref_dir, bam, bam_index, sample_dir, sample_id):
+    contig_id = "{}.{}".format(sample_id, contig)
+    coords = "{}:{}".format(contig, segment)
 
-    sample_dir = os.path.abspath(sample_dir)
-    contigID = "{}.{}".format(sample_id, contig)
-    contigDupLog = "{0}/{1}.contig.dup.log".format(sample_dir, contigID)
-    contigDupBam = "{0}/{1}.contig.dup.bam".format(sample_dir, contigID)
-    contigDupMetrics = "{0}/{1}.contig.dup.metrics".format(sample_dir, contigID)
+    contig_vcf = "{}/{}.{}_{}.{}.vcf".format(sample_dir, contig_id, contig, segment, genotyper)
+    contig_vcf_log = "{}/{}.{}_{}.{}.log".format(sample_dir, contig_id, contig, segment, genotyper)
 
-    future = PicardMarkDuplicates(
-        work_dir,
-        in_bam,
-        contigID,
-        sample_dir,
-        outputs=[contigDupLog, contigDupBam, contigDupMetrics],
-    )
-
-    return future.outputs[1]
-
-
-def index_bam(work_dir, in_bam):
-    from swag.parsl.apps import IndexBam
-
-    contigIndexStr = in_bam.filepath;
-    contigDupBamBai = "{}.bai".format(contigIndexStr)
-    contigDupBamBaiLog = "{}.bai.log".format(contigIndexStr)
-
-    future = IndexBam(work_dir, in_bam, outputs=[contigDupBamBaiLog, contigDupBamBai])
-
-    return future.outputs[1]
-
-
-def printQualityControl(FH, tabCount, QCBam, sampleDir, sampleID, apps):
-    ''' Need a better solution for this down the road... Whatever solution
-    is derived would be useful for a number of heterogeneous apps as well '''
-
-    tabs = tabCount * '\t'
-
-    Str = ''
-
-    if 'SamtoolsFlagstat' in apps:
-        Str = Str + (tabs + '# Flagstat on the geno-ready aligned bam (' + QCBam + ')\n' +
-                     tabs + 'file flagstatLog <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".bam.flagstat.log")>;\n' +
-                     tabs + 'file flagstat <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".bam.flagstat")>;\n' +
-                     tabs + '(flagstatLog,flagstat) = SamtoolsFlagstat (' + QCBam + ',' + sampleID + ',' + sampleDir + ');\n\n')
-
-    if 'BedtoolsGenomeCoverage' in apps:
-        Str = Str + (tabs + '# Bedtools coverage and depth of coverage on ' + QCBam + '\n' +
-                     tabs + 'file DoClog <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".coverage.log")>;\n' +
-                     tabs + 'file coverage <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".coverage")>;\n' +
-                     tabs + 'file DoC <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".DoC")>;\n' +
-                     tabs + '(DoClog,coverage,DoC) = BedtoolsGenomeCoverage (' + QCBam + ',' + sampleID + ',' + sampleDir + ');\n\n')
-
-    if 'BamutilPerBaseCoverage' in apps:
-        Str = Str + (tabs + '# Per base coverage on the geno-ready aligned bam (' + QCBam + ')\n' +
-                     tabs + 'file perBaseCoverageLog <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".bam.perBaseCoverage.log")>;\n' +
-                     tabs + 'file perBaseCoverage <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".bam.perBaseCoverage")>;\n' +
-                     tabs + '(perBaseCoverageLog,perBaseCoverage) = BamutilPerBaseCoverage (' + QCBam + ',' + sampleID + ',' + sampleDir + ');\n\n')
-
-    FH.write(Str)
-    return
-
-
-def contig_merge_sort(work_dir, bams, sample_dir, sample_id):
-    from swag.parsl.apps import ContigMergeSort
-
-    genoMergeBamIndex = "{}/{}.geno.merged.bam.bai".format(sample_dir, sample_id)
-    genoMergeBam = "{}/{}.geno.merged.bam".format(sample_dir, sample_id)
-    genoMergeLog = "{}/{}.geno.merged.log".format(sample_dir, sample_id)
-
-    future = ContigMergeSort(
+    app = getattr(swag.parsl.apps, genotyper)
+    future = app(
         work_dir,
         sample_id,
         sample_dir,
-        inputs=bams,
-        outputs=[genoMergeLog, genoMergeBam, genoMergeBamIndex]
+        bam,
+        bam_index,
+        coords,
+        outputs=[contig_vcf, contig_vcf_log]
     )
-
-    return future.outputs[1], future.outputs[2]
-
-
-
-def getContigMergeSort(tabCount, bamArrayName, name, sampleDir, sampleID):
-    ''' Could likely be reduced into a single function with the one above
-    with a boolean determining what is returned or printed to a file '''
-
-    tabs = tabCount * '\t'
-
-    Str = (tabs + '# Mergesort the ' + name + ' contig bams\n' +
-           tabs + 'file ' + name + 'MergeBamIndex <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".' + name + '.merged.bam.bai")>;\n' +
-           tabs + 'file ' + name + 'MergeBam <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".' + name + '.merged.bam")>;\n' +
-           tabs + 'file ' + name + 'MergeLog <single_file_mapper; file=strcat(' + sampleDir + ',"/",' + sampleID + ',".' + name + '.merged.log")>;\n' +
-           tabs + '(' + name + 'MergeLog,' + name + 'MergeBam,' + name + 'MergeBamIndex) = ContigMergeSort (' + bamArrayName + ',' + sampleID + ',' + sampleDir + ');\n\n')
-
-    return ((name + 'MergeBam'), Str)  # return as a tuple
-
-
-def printSingleSampleGeno(FH, tabCount, genotypers, refDir, genoBam, genoBamIndex):
-    ''' fff '''
-
-    tabs = tabCount * '\t'
-
-    Str = (
-        tabs + 'string contigSegments [] = readData(strcat("' + refDir + '/contig_segments_",contigName,".txt"));\n' +
-        tabs + 'foreach contigSegment in contigSegments {\n\n' +
-
-        tabs + '\t' + '# Get coordinate info\n' +
-        tabs + '\t' + 'string coords = strcat(contigName,":",contigSegment);\n' +
-        tabs + '\t' + 'string segmentSuffix = strcat(".",contigName,"_",contigSegment);\n\n')
-
-    FH.write(Str)
-
-    for genotyper in genotypers:
-        printGenotyperApp(FH, tabCount + 1, genotyper, genoBam, genoBamIndex)
-
-    closeBracket(FH, tabCount, '')
-    return
-
+    return  future.outputs[0]
 
 def printGermBamArrayAssignment(FH, tabCount, contig, genoBam, genoBamIndex):
     ''' ddd '''

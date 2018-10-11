@@ -22,14 +22,16 @@ def germline(workflow, work_dir, contigs_file, out_dir):
         samples = list(csv.DictReader(f, delimiter=' '))
 
     for sample in samples:
-        sample['dir'] = os.path.abspath(sample['dir'])
+        sample_dir = os.path.abspath(sample['dir'])
+        sample_id = sample['ID']
+
         ########################################################################
         ## Aligment
         ########################################################################
         # in_bam will be passed to split by contig if alignment is not needed
         # INPUT - Unaligned input files (including read groups)
 
-        in_bam = os.path.join(sample['dir'], "{}.bam".format(sample['ID']))
+        in_bam = os.path.join(sample_dir, "{}.bam".format(sample_id))
         contig_split_bam = in_bam
 
         if workflow.has_alignment:
@@ -40,67 +42,73 @@ def germline(workflow, work_dir, contigs_file, out_dir):
                 work_dir=work_dir,
                 aligner_app=getattr(swag.parsl.apps, workflow.aligner),
                 mergesort_app=getattr(swag.parsl.apps, SwagStrings.generate_sort_app),
-                sample_dir=os.path.abspath(sample['dir']),
-                sample_id=sample['ID']
+                sample_dir=sample_dir,
+                sample_id=sample_id
             )
 
         # FIXME broken if `(not workflow.has_alignment)`
         contigBams = []
-        contigBamBais = []
+        vcfs = collections.defaultdict(list)
         for contig, bam in zip(contigs, alnSampleContigBams):
             if workflow.has_alignment: # Dup removal optional for non-alignment cases
-                bam = picard_mark_duplicates(work_dir, bam, contig, sample['ID'], sample['dir'])
+                bam = picard_mark_duplicates(work_dir, bam, contig, sample_id, sample_dir)
+            bam_index = index_bam(work_dir, bam)
 
+            ref_dir = os.path.join(work_dir, out_dir, SwagStrings.analysis_reference_dir)
+            contig_segments = read_data(os.path.join(ref_dir, 'contig_segments_{}.txt'.format(contig)))
+            for segment in contig_segments:
 
-            ########################################################################
-            ## GATK Post-processing
-            ########################################################################
-            # These steps will occur in a block
-            # Will update the name of the genoBam if gatk performed
-            # if workflow.has_gatk:
-                 # printGrpFilenames(swift_script, tabCount=1)
-                 # Str = (tabs + 'file mergedGrp <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".merged.grp")>;\n' +
-                 #        tabs + 'file mergeGrpLog <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".merged.grp.log")>;\n' +
-                 #        tabs + 'file grpFiles [];\n\n')
+                ########################################################################
+                ## GATK Post-processing
+                ########################################################################
+                # These steps will occur in a block
+                # Will update the name of the genoBam if gatk performed
+                # if workflow.has_gatk:
+                     # printGrpFilenames(swift_script, tabCount=1)
+                     # Str = (tabs + 'file mergedGrp <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".merged.grp")>;\n' +
+                     #        tabs + 'file mergeGrpLog <single_file_mapper; file=strcat(sample.dir,"/",sample.ID,".merged.grp.log")>;\n' +
+                     #        tabs + 'file grpFiles [];\n\n')
 
-                # genoBam = printGatkAppCalls(
-                 #    parsl_script,
-                 #    tabCount=2,
-                 #    inputBam=genoBam
-                # )
+                    # genoBam = printGatkAppCalls(
+                     #    parsl_script,
+                     #    tabCount=2,
+                     #    inputBam=genoBam
+                    # )
 
-            ########################################################################
-            ## Single sample coordinate genotyping
-            ########################################################################
-            # if workflow.has_genotyping:
-                # for genotyper in workflow.genotypers:
-                #      Str = tabs + 'file[auto] ' + genotyper + 'ContigVcfs;\n'
-                # printSingleSampleGeno(
-                #     parsl_script,
-                #     tabCount=2,
-                #     genotypers=workflow.genotypers,
-                #     refDir=os.path.join(work_dir, out_dir, SwagStrings.analysis_reference_dir),
-                #     genoBam=genoBam,
-                #     genoBamIndex=genoBam + 'Bai'
-                # )
+                ########################################################################
+                ## Single sample coordinate genotyping
+                ########################################################################
+                if workflow.has_genotyping:
+                    for genotyper in workflow.genotypers:
+                        vcfs[genotyper].append(single_sample_genotype(
+                                work_dir,
+                                genotyper=genotyper,
+                                contig=contig,
+                                segment=segment,
+                                ref_dir=os.path.join(work_dir, out_dir, SwagStrings.analysis_reference_dir),
+                                bam=bam,
+                                bam_index=bam_index,
+                                sample_dir=sample_dir,
+                                sample_id=sample_id
+                            )
+                        )
 
-            ########################################################################
-            # Structural variant calling
-            ########################################################################
-            # Step flexible even if Delly only supported
-            # if workflow.has_struct_vars:
-                # for structVarCaller in workflow.struct_var_callers:
-                #      Str = tabs + 'file[auto] ' + structVarCaller + 'ContigVcfs;\n'
-                # printDellyApp(
-                #     parsl_script,
-                #     tabCount=2,
-                #     genoBam=genoBam,
-                #     genoBamIndex=genoBam + 'Bai'
-                # )
+                ########################################################################
+                # Structural variant calling
+                ########################################################################
+                # Step flexible even if Delly only supported
+                # if workflow.has_struct_vars:
+                    # for structVarCaller in workflow.struct_var_callers:
+                    #      Str = tabs + 'file[auto] ' + structVarCaller + 'ContigVcfs;\n'
+                    # printDellyApp(
+                    #     parsl_script,
+                    #     tabCount=2,
+                    #     genoBam=genoBam,
+                    #     genoBamIndex=genoBam + 'Bai'
+                    # )
 
 
             contigBams.append(bam)
-            contigBamBais.append(index_bam(work_dir, bam))
 
         #########################################################################
         ### Reduce bam steps
@@ -115,33 +123,21 @@ def germline(workflow, work_dir, contigs_file, out_dir):
         #    printReduceGrpAppCall(parsl_script, tabCount=1)
 
         if workflow.has_alignment:
-            QCBam, QCBamBai = contig_merge_sort(
+            bam, bam_index = contig_merge_sort(
                 work_dir,
                 contigBams,
-                sample['dir'],
-                sample['ID']
+                sample_dir,
+                sample_id
             )
-        else:
-            # if only genotyping do QC on the input bam
-            QCBam = inBam
-
-        QCBam.result()
-        QCBamBai.result()
 
         #########################################################################
         ### Reduce vcf steps
         #########################################################################
         ## All vcfs will be merged here
 
-        #if workflow.has_genotyping:
-        #    for genotyper in workflow.genotypers:
-        #        printReduceVcfApp(
-        #            parsl_script,
-        #            tabCount=1,
-        #            genotyper=genotyper,
-        #            sampleDir='sample.dir',
-        #            sampleID='sample.ID'
-        #        )
+        if workflow.has_genotyping:
+            for genotyper in workflow.genotypers:
+                concat_vcf(work_dir, sample_id, sample_dir, genotyper, vcfs[genotyper])
 
         #if workflow.has_struct_vars:
         #    for structVarCaller in workflow.struct_var_callers:
@@ -166,25 +162,9 @@ def germline(workflow, work_dir, contigs_file, out_dir):
         #            sampleID='sample.ID'
         #        )
 
-        #########################################################################
-        ### Merged geno bam operations
-        #########################################################################
-        ### Quality control
-        #printQualityControl(
-        #    parsl_script,
-        #    tabCount=1,
-        #    QCBam=QCBam,
-        #    sampleDir='sample.dir',
-        #    sampleID='sample.ID',
-        #    apps=workflow.bam_quality_control_apps
-        #)
-        #closeBracket(
-        #    parsl_script,
-        #    tabCount=0,
-        #    comment='# End of sample'
-        #)  # This is the end of the sample
+        perform_quality_control(work_dir, bam, sample_dir, sample_id, workflow.bam_quality_control_apps)
 
-        #return parsl_script_path
+        parsl.join()
 
 
 #### This will be necessary for ASCAT (not necessarily) and tranlocations
@@ -326,15 +306,8 @@ def tumor_normal(workflow, work_dir, contigsFileFp, out_dir):
       #  )
 
       #  # Do QC here - shouldn't this use QCBam?
-      #  # if bamQualityCOntrolApps is empty it will print nothing to the Parsl script
-      #  printQualityControl(
-      #      parsl_script,
-      #      tabCount=3,
       #      QCBam='pairedSampleData.wholeBam',
-      #      sampleDir='sample.dir',
-      #      sampleID='sample.ID',
-      #      apps=workflow.bam_quality_control_apps
-      #  )
+      #  perform_quality_control(work_dir, bam, sample_dir, sample_id, workflow.bam_quality_control_apps):
 
       #  printAssignPairedData(parsl_script, tabCount=3)
 

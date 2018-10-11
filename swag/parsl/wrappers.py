@@ -536,7 +536,7 @@ def compose_GatkBqsrGrpReduce(app_name, **kwargs):
     )
 
 
-def compose_SamtoolsFlagstat(app_name, **kwargs):
+def compose_samtools_flagstat(app_name, **kwargs):
     """ ff"""
 
     exe_config = kwargs.get('exe_config')

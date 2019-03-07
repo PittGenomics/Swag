@@ -839,7 +839,7 @@ def compose_ConcatVcf(app_name, **kwargs):
     wrapper = (
         '#!/bin/bash\n\n'
         
-        '#set -e\n\n'
+        '#set -ex\n\n'
 
         'outVcf=$1\n'
         'logFile=$2\n'
@@ -852,6 +852,7 @@ def compose_ConcatVcf(app_name, **kwargs):
         'export PATH={env_PATH}\n\n'
 
         '{hostname_info}\n\n'
+        'printenv\n\n'
 
         '# Will check if file had data in it\n'
         '# if it does not the file will not be passed to the reduce vcfs step\n'

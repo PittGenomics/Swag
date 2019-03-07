@@ -195,8 +195,6 @@ def get_options_block(site, **kwargs):
             ParslConfigProp('lowOverallocation', 100),
             ParslConfigProp('tasksPerNode', tasks_per_node),
             ParslConfigProp('workerLoggingLevel', 'DEBUG'),
-            ParslConfigProp('workerLoggingDirectory',
-                            os.path.join(kwargs.get('work_dir'), SwagStrings.worker_logging_dir))
         ] + ([
             # If a project ID exists, return a property, else nothing
             ParslConfigProp('jobProject', kwargs.get('project_id'))

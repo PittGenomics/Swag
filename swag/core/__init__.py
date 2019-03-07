@@ -57,7 +57,6 @@ class SwagStrings(object):
     analysis_reference_dir = 'Reference'
     restart_conf_filename = 'restart.conf'
     paired_analysis_dir = 'pairedAnalyses'
-    worker_logging_dir = 'workerLogging'
     wrapper_dir = 'wrapper'
 
     # For swag.parsl.generate

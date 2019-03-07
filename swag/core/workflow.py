@@ -121,7 +121,7 @@ class Workflow(object):
         runType, dataType, genotypers, structVarCallers, gatk, rmDup
         """
         self.workflow_config = workflow_config
-        self.validate()
+        # self.validate()
 
         # Get workflow specifics - error checking will be performed
         self.run_type = workflow_config['run_type']

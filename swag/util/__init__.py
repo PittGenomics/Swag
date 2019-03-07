@@ -68,5 +68,3 @@ def read_data(filename):
 
     with open(filename, 'r') as f:
         return [i.strip() for i in f.readlines()]
-        # FIXME shortened for testing
-        # return [i.strip() for i in f.readlines()][:2]

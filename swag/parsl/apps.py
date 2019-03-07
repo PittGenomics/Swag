@@ -98,7 +98,7 @@ def PlatypusGerm(work_dir, sample_id, sample_dir, bam, bam_index, coords, output
 
     return executable + ' {3} {4} {outputs[0]} {outputs[1]} {1} {2} {5}'
 
-@bash_app
+@bash_app(executors=['threads'])
 def concat_vcf_app(executable, sample_id, sample_dir, inputs=[], outputs=[], stdout=None, stderr=None):
     vcfs = ' '.join([i.filepath for i in inputs])
 

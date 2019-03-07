@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#- /usr/bin/env python
 
 """
 Written by Jason Pitt
@@ -70,9 +70,6 @@ def main(args=None):
     # subprocess.call('$SHELL {cmd}'.format(cmd=util_scripts['util_graphic']), shell=True)
     swag.util.message_to_screen('\nPreparing run...\n')
 
-    # Create working logging directory
-    mkdirs(os.path.join(os.getcwd(), SwagStrings.worker_logging_dir))
-
     # Get current directory and parse configs
     work_dir = os.path.abspath(os.getcwd())  # Absolute path
     exe_config = swag.util.parse_config(config.exe_config)
@@ -115,6 +112,7 @@ def main(args=None):
     workflow_wrappers_options.update(util_scripts)
     compose_workflow_wrappers(workflow, **workflow_wrappers_options)
 
+    parsl.set_stream_logger()
     parsl.load(config.parsl_config)
 
     # Gather input files
@@ -122,7 +120,7 @@ def main(args=None):
     individuals_analyzed, samples_analyzed, inputdata_symlinks = process_samples(
         inputdata_type=workflow.data_type,
         inputdata_filepaths=find_data_filepaths(config.data, '.bam'),
-        data_root=config.data,
+        data_root=os.path.abspath(config.data),
         analysis_root=out_dir,
         samtools_path=exe_config['samtools']
     )

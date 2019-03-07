@@ -164,7 +164,7 @@ def germline(workflow, work_dir, contigs_file, out_dir):
 
         perform_quality_control(work_dir, bam, sample_dir, sample_id, workflow.bam_quality_control_apps)
 
-        parsl.join()
+        parsl.wait_for_current_tasks()
 
 
 #### This will be necessary for ASCAT (not necessarily) and tranlocations

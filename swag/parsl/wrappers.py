@@ -1362,6 +1362,8 @@ def compose_BwaMem(app_name, **kwargs):
         'readGroup=$({exe_samtools} view -H $inBam 2>> $logFile | grep "@RG"| grep $RGname | '
             'sed "s:\\\t:\\t:g" | sed "s:\\t:\\\\\\\\t:g")\n\n'
         
+        'echo present working directory: $PWD >> $logFile\n\n'
+
         'echo Read group: $RGname >> $logFile\n\n'
         '# Will default to PE... is wc -l > 0 then a PE run will be initiated\n'
         'numPairedReads=$({exe_samtools} view -b -r $RGname -f 0x1 $inBam | head -25000 | wc -l)\n\n'

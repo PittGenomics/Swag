@@ -49,7 +49,7 @@ def parse_config(config_filepath):
             # Extract key-value pair
             try:
                 key, val = line.strip().split('=')
-                config_dict[key] = val
+                config_dict[key] = os.path.abspath(val)
             except ValueError:
                 raise Exception('Config file {} is malformed.'.format(config_filepath))
 

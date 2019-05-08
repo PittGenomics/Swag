@@ -73,7 +73,7 @@ def get_broken_symlink_check_str(variableName):
 
 
 def bam_indexing(samtools, variable_name):
-    """Will take a file variable name and a samtools path and will print
+    """Take a file variable name and a samtools path and print
     bash code that will create a bam index using samtools """
 
     return ('# Indexing\n'

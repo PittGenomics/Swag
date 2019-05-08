@@ -14,7 +14,7 @@ from parsl.app.app import bash_app
 from swag.core import SwagStrings
 
 @bash_app
-def BwaMem(work_dir, bam, RG_name, sample_id, sample_dir, outputs=[], stdout=None, stderr=None):
+def BwaMem(work_dir, bam, RG_name, sample_id, sample_dir, outputs=[], stdout='auto', stderr='auto'):
     import os
     executable = os.path.join(work_dir, SwagStrings.wrapper_dir, 'BwaMem.sh')
 
@@ -22,7 +22,7 @@ def BwaMem(work_dir, bam, RG_name, sample_id, sample_dir, outputs=[], stdout=Non
 
 
 @bash_app
-def RgMergeSort(work_dir, sample_id, sample_dir, inputs=[], outputs=[], stdout=None, stderr=None):
+def RgMergeSort(work_dir, sample_id, sample_dir, inputs=[], outputs=[], stdout='auto', stderr='auto'):
     """
     inputs: RGalnBams
     outputs: [alnSampleContigBamFile, alnSampleBamLog, alnSampleContigBams....]
@@ -34,7 +34,7 @@ def RgMergeSort(work_dir, sample_id, sample_dir, inputs=[], outputs=[], stdout=N
     return executable + ' {outputs[0]} {outputs[1]} {1} {2} ' + bams
 
 @bash_app
-def picard_mark_duplicates_app(executable, bam, sample_id, sample_dir, outputs=[], stdout=None, stderr=None):
+def picard_mark_duplicates_app(executable, bam, sample_id, sample_dir, outputs=[], stdout='auto', stderr='auto'):
     return executable + ' {1} {outputs[1]} {outputs[0]} {outputs[2]} {2} {3}'
 
 def picard_mark_duplicates(work_dir, bam, contig, sample_id, sample_dir):
@@ -55,7 +55,7 @@ def picard_mark_duplicates(work_dir, bam, contig, sample_id, sample_dir):
     return future.outputs[1]
 
 @bash_app
-def index_bam_app(executable, bam, outputs=[], stdout=None, stderr=None):
+def index_bam_app(executable, bam, outputs=[], stdout='auto', stderr='auto'):
     return executable + ' {1} {outputs[1]} {outputs[0]}'
 
 def index_bam(work_dir, bam):
@@ -69,8 +69,8 @@ def index_bam(work_dir, bam):
     return future.outputs[1]
 
 @bash_app
-def contig_merge_sort_app(executable, sample_id, sample_dir, inputs=[], outputs=[], stdout=None, stderr=None):
-    bams = ' '.join(inputs)
+def contig_merge_sort_app(executable, sample_id, sample_dir, inputs=[], outputs=[], stdout='auto', stderr='auto'):
+    bams = ' '.join([str(i) for i in inputs])
     return executable + ' {outputs[1]} {outputs[0]} {1} {2} ' + bams
 
 def contig_merge_sort(work_dir, bams, sample_dir, sample_id):
@@ -83,13 +83,13 @@ def contig_merge_sort(work_dir, bams, sample_dir, sample_id):
         sample_id,
         sample_dir,
         inputs=bams,
-        outputs=[genoMergeLog, genoMergeBam, genoMergeBamIndex]
+        outputs=[genoMergeLog, genoMergeBam, genoMergeBamIndex],
     )
 
     return future.outputs[1], future.outputs[2]
 
 @bash_app
-def PlatypusGerm(work_dir, sample_id, sample_dir, bam, bam_index, coords, outputs=[], stdout=None, stderr=None):
+def PlatypusGerm(work_dir, sample_id, sample_dir, bam, bam_index, coords, outputs=[], stdout='auto', stderr='auto'):
     """
     outputs = [file outVcf, file log]
     """
@@ -99,7 +99,7 @@ def PlatypusGerm(work_dir, sample_id, sample_dir, bam, bam_index, coords, output
     return executable + ' {3} {4} {outputs[0]} {outputs[1]} {1} {2} {5}'
 
 @bash_app(executors=['threads'])
-def concat_vcf_app(executable, sample_id, sample_dir, inputs=[], outputs=[], stdout=None, stderr=None):
+def concat_vcf_app(executable, sample_id, sample_dir, inputs=[], outputs=[], stdout='auto', stderr='auto'):
     vcfs = ' '.join([i.filepath for i in inputs])
 
     return executable + ' {outputs[0]} {outputs[1]} {1} {2} ' + vcfs
@@ -113,7 +113,7 @@ def concat_vcf(work_dir, sample_id, sample_dir, genotyper, vcfs):
 
 
 @bash_app
-def samtools_flagstat_app(executable, bam, sample_id, sample_dir, outputs=[], stdout=None, stderr=None):
+def samtools_flagstat_app(executable, bam, sample_id, sample_dir, outputs=[], stdout='auto', stderr='auto'):
     log, flagstat = outputs
     template = '{executable} {bam} {flagstat} {log} {sample_id} {sample_dir}'
     return template.format(executable=executable, bam=bam, flagstat=flagstat, log=log, sample_id=sample_id, sample_dir=sample_dir)

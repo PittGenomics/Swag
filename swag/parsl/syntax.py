@@ -179,8 +179,6 @@ def align(in_bam, work_dir, aligner_app, mergesort_app, sample_id, sample_dir):
             sample_id,
             sample_dir,
             outputs=[RG_align_bam, RG_align_log, RG_align_bai],
-            stdout=RG_align_log + '.stdout',
-            stderr=RG_align_log + '.stderr'
         )
 
         RG_align_bams.append(future.outputs[0])

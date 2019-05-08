@@ -1379,9 +1379,12 @@ def compose_BwaMem(app_name, **kwargs):
         '\trm -f $fastq1\n'
         '\trm -f $fastq2\n\n'
         
+        # '\tmkfifo $fastq1\n'
+        # '\tmkfifo $fastq2\n\n'
+        
         '\t# Unpaired fastq will be discarded into /dev/null\n'
         '\t{exe_samtools} view -b -r $RGname $inBam 2>> $logFile | {exe_bamutil} bam2FastQ --in -.bam --noeof '
-            '--firstOut $fastq1 --secondOut $fastq2 --unpairedOut /dev/null 2>> $logFile &\n\n'
+            '--firstOut $fastq1 --secondOut $fastq2 --unpairedOut /dev/null 2>> $logFile \n\n'
         
         '\t# Aln PE -M by default for Picard compatibility\n'
         # '\t{exe_bwa} mem {app_parameters} -M -t {max_cores} -R "$readGroup" {ref_ref} $fastq1 $fastq2 2>> $logFile | '
@@ -1404,10 +1407,11 @@ def compose_BwaMem(app_name, **kwargs):
         
         '\t# Single end data... make named pipes\n'
         '\trm -f $fastq\n'
+        # '\tmkfifo $fastq\n'
         
         '\t# end 1 and end 2 fastq will be discarded into /dev/null\n'
         '\t{exe_samtools} view -b -r $RGname $inBam 2>> $logFile | {exe_bamutil} bam2FastQ --in -.bam --noeof '
-            '--firstOut /dev/null --secondOut /dev/null --unpairedOut $fastq 2>> $logFile &\n\n'
+            '--firstOut /dev/null --secondOut /dev/null --unpairedOut $fastq 2>> $logFile \n\n'
         
         # '\t{exe_bwa} mem {app_parameters} -M -t {max_cores} -R "$readGroup" {ref_ref} $fastq 2>> $logFile | '
         #     '{exe_samtools} view -b - 2>> $logFile | {exe_novosort} --threads {max_cores_div_4} --ram {max_mem_div_2}M '

@@ -809,8 +809,14 @@ def compose_ContigMergeSort(app_name, **kwargs):
         'done\n\n'
         
         '# Use Sambamba merge. Contigs should already be sorted\n'
-        'echo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
-        '{exe_sambamba} merge --nthreads={max_cores} $outBam $inBams 2>> $logFile\n\n'
+        'bam_array=($inBams)\n'
+        'if [ ${{#bam_array[@]}} -eq 1 ]; then\n'
+        '\techo Only one input file-- skipping merge. >> $logFile\n'
+        '\tcp ${{inBams[0]}} $outBam\n'
+        'else\n'
+        '\techo [$(date)] Sorting and indexing $inBams into $outBam >> $logFile 2>&1\n'
+        '\t{exe_sambamba} merge --nthreads={max_cores} $outBam $inBams 2>> $logFile\n\n'
+        'fi\n\n'
 
         + exe_config['samtools'] + ' index $outBam 2>> $logFile\n\n'
         

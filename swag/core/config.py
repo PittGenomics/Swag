@@ -33,7 +33,7 @@ class SwagConfig(RepresentationMixin):
         Number of tasks to pack (run simultaneously) on each worker node (default = 8).
     ram_per_node : int, optional
         Amount of RAM in megabytes available on each worker node (default = 29000).
-    tmp : str, optional
+    temp_dir : str, optional
         Temporary directory for this run (by default on will be created).
     worker_use_tmp : bool, optional
         Have wrappers use /tmp on the working as temp space. Should assist in reducing
@@ -50,7 +50,7 @@ class SwagConfig(RepresentationMixin):
                  cores_per_node=cpu_count(),
                  tasks_per_node=8,
                  ram_per_node=29000,
-                 tmp=os.path.join(gettempdir(), os.environ['USER']),
+                 temp_dir=os.path.join(gettempdir(), os.environ['USER']),
                  worker_use_tmp=True,
                  parsl_config=config):
         self.data = data
@@ -61,12 +61,12 @@ class SwagConfig(RepresentationMixin):
         self.cores_per_node = cores_per_node  # TODO read from parsl config?
         self.tasks_per_node = tasks_per_node
         self.ram_per_node = ram_per_node
-        self.tmp = tmp
+        self.tmp = temp_dir
         self.worker_use_tmp = worker_use_tmp
         self.parsl_config = parsl_config
 
         is_valid_dir(data)
-        is_valid_tmp_dir(tmp)
+        is_valid_tmp_dir(temp_dir)
         is_valid_file(workflow)
         is_valid_file(ref_config)
         is_valid_file(exe_config)

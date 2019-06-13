@@ -1,12 +1,6 @@
 #- /usr/bin/env python
 
 """
-Written by Jason Pitt
-    Github: JasonJPitt
-Modified by Dominic Fitzgerald on 24 August 2017
-    Github: djf604
-
-swag run [args]
 The entry point for starting a new Swag run.
 """
 from __future__ import print_function

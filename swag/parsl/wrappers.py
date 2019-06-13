@@ -1352,8 +1352,7 @@ def compose_BwaMem(app_name, **kwargs):
         'export PATH={env_PATH}\n'
         'export LD_LIBRARY_PATH={env_LD_LIBRARY_PATH}\n\n'
         
-        # 'tmpDir=$(pwd)/${{ID}}/NovoSortBwa\n'
-        'tmpDir={tmp_dir}/${{ID}}/SambambaBwa\n'
+        'tmpDir={tmp_dir}/${{ID}}.${{RGname}}\n'
         'mkdir -p -v $tmpDir\n\n'
         
         '{hostname_info}\n\n'
@@ -1372,8 +1371,8 @@ def compose_BwaMem(app_name, **kwargs):
         '\techo File $inBam appears to contain PAIRED END fastq data... >> $logFile\n'
         '\techo Extracting and aligning PAIRED END data... >> $logFile\n\n'
         
-        '\tfastq1=${{ID}}_1.fastq\n'
-        '\tfastq2=${{ID}}_2.fastq\n\n'
+        '\tfastq1=$tmpDir/${{RGname}}.${{ID}}_1.fastq\n'
+        '\tfastq2=$tmpDir/${{RGname}}.${{ID}}_2.fastq\n\n'
         
         '\t# Paired end data... rm existing and make named pipes\n'
         '\trm -f $fastq1\n'
@@ -1403,7 +1402,7 @@ def compose_BwaMem(app_name, **kwargs):
         '\techo File $inBam appears to contain SINGLE END fastq data... >> $logFile\n'
         '\techo Extracting and aligning SINGLE END data... >> $logFile\n\n'
         
-        '\tfastq=${{ID}}.fastq\n\n'
+        '\tfastq=$tmpDir/${{RGname}}.${{ID}}.fastq\n\n'
         
         '\t# Single end data... make named pipes\n'
         '\trm -f $fastq\n'
@@ -1424,8 +1423,9 @@ def compose_BwaMem(app_name, **kwargs):
         '\t# remove fifo variables/objects\n'
         '\trm $fastq\n\n'
         
-        'fi\n\n'
+        'fi\n'
         
+        'rm -rf $tmpDir\n'
         '{eof_check}\n'
     )
 

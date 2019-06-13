@@ -163,19 +163,19 @@ def printDellyApp(FH, tabCount, genoBam, genoBamIndex):
 def align(in_bam, work_dir, aligner_app, mergesort_app, sample_id, sample_dir):
     ## Align read groups and merge-sort
     sample_RGs = read_data(os.path.join(sample_dir, SwagStrings.readgroups_out_filename))
+    RG_IDs = read_data(os.path.join(sample_dir, SwagStrings.readgroups_ids_out_filename))
     RG_align_bams = [] # RG bams to be used by mergesort
 
-    for sample_RG in sample_RGs:
-        RG_id = sample_RG.rsplit('/', 1)[1].strip('.bam')
-        RG_name = RG_id.rsplit('.', 1)[1]
+    for sample_RG, RG_ID in zip(sample_RGs, RG_IDs):
+        label = sample_RG.rsplit('/', 1)[1].strip('.bam')
 
-        RG_align_bam = os.path.abspath(os.path.join(sample_dir, "{}.aln.bam".format(RG_id)))
-        RG_align_log = os.path.abspath(os.path.join(sample_dir, "{}.aln.log".format(RG_id)))
-        RG_align_bai = os.path.abspath(os.path.join(sample_dir, "{}.aln.bam.bai".format(RG_id)))
+        RG_align_bam = os.path.abspath(os.path.join(sample_dir, "{}.aln.bam".format(label)))
+        RG_align_log = os.path.abspath(os.path.join(sample_dir, "{}.aln.log".format(label)))
+        RG_align_bai = os.path.abspath(os.path.join(sample_dir, "{}.aln.bam.bai".format(label)))
         future = aligner_app(
             work_dir,
             in_bam,
-            RG_name,
+            RG_ID,
             sample_id,
             sample_dir,
             outputs=[RG_align_bam, RG_align_log, RG_align_bai],

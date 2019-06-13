@@ -90,11 +90,3 @@ def extract_SM(readGroupString):
     # For TN pairs, the entire pair will need ot be ignored
 
     return SM
-
-
-def is_uniform_SM_fields(read_group_strings):
-    """
-    I have no idea what this function does
-    It was kind of a function stub
-    """
-    return len({extract_SM(read_group_string) for read_group_string in read_group_strings}) == 1

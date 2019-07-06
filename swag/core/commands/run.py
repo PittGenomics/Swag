@@ -53,11 +53,6 @@ def main(args=None):
 
     config = load_config(args.config)
 
-    # Make sure appropriate environment variables are present
-    for environ_var in ('PATH', 'LD_LIBRARY_PATH'):
-        if environ_var not in os.environ:
-            raise EnvironmentVariableException(environ_var)
-
     # Get bundles util scripts
     util_scripts = swag.util.get_util_scripts()
 

@@ -16,7 +16,7 @@ from swag.core import SwagStrings
 
 @bash_app
 def BwaMem(work_dir, bam, RG_name, sample_id, sample_dir, outputs=[], stdout=parsl.AUTO_LOGNAME,
-        stderr=parsl.AUTO_LOGNAME, label='label'):
+        stderr=parsl.AUTO_LOGNAME):
     import os
 
     command = '{exe} {bam} {outfile} {RG_name} {logfile} {sample_id} {sample_dir}'.format(

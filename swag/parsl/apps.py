@@ -14,14 +14,22 @@ import parsl
 from parsl.app.app import bash_app
 from swag.core import SwagStrings
 
-@bash_app()
+@bash_app
 def BwaMem(work_dir, bam, RG_name, sample_id, sample_dir, outputs=[], stdout=parsl.AUTO_LOGNAME,
         stderr=parsl.AUTO_LOGNAME, label='label'):
     import os
-    executable = os.path.join(work_dir, SwagStrings.wrapper_dir, 'BwaMem.sh')
 
-    return executable + ' {1} {outputs[0]} {2} {outputs[1]} {3} {4}'
+    command = '{exe} {bam} {outfile} {RG_name} {logfile} {sample_id} {sample_dir}'.format(
+        exe=os.path.join(work_dir, SwagStrings.wrapper_dir, 'BwaMem.sh'),
+        bam=bam,
+        outfile=str(outputs[0]),
+        RG_name=RG_name,
+        logfile=str(outputs[1]),
+        sample_id=sample_id,
+        sample_dir=sample_dir
+    )
 
+    return command
 
 @bash_app
 def RgMergeSort(work_dir, sample_id, sample_dir, inputs=[], outputs=[], stdout=parsl.AUTO_LOGNAME, stderr=parsl.AUTO_LOGNAME):
@@ -30,14 +38,32 @@ def RgMergeSort(work_dir, sample_id, sample_dir, inputs=[], outputs=[], stdout=p
     outputs: [alnSampleContigBamFile, alnSampleBamLog, alnSampleContigBams....]
     """
     import os
-    executable = os.path.join(work_dir, SwagStrings.wrapper_dir, 'RgMergeSort.sh')
-    bams = ' '.join([str(i) for i in inputs])
 
-    return executable + ' {outputs[0]} {outputs[1]} {1} {2} ' + bams
+    command = '{exe} {outfile} {logfile} {sample_id} {sample_dir} {bams}'.format(
+        exe=os.path.join(work_dir, SwagStrings.wrapper_dir, 'RgMergeSort.sh'),
+        outfile=str(outputs[0]),
+        logfile=str(outputs[1]),
+        sample_id=sample_id,
+        sample_dir=sample_dir,
+        bams=' '.join([str(i) for i in inputs])
+    )
+
+    return command
 
 @bash_app
 def picard_mark_duplicates_app(executable, bam, sample_id, sample_dir, outputs=[], stdout=parsl.AUTO_LOGNAME, stderr=parsl.AUTO_LOGNAME):
-    return executable + ' {1} {outputs[1]} {outputs[0]} {outputs[2]} {2} {3}'
+
+    command = '{exe} {bam} {outfile} {logfile} {metrics} {sample_id} {sample_dir}'.format(
+        exe=executable,
+        bam=bam,
+        outfile=str(outputs[1]),
+        logfile=str(outputs[0]),
+        metrics=str(outputs[2]),
+        sample_id=sample_id,
+        sample_dir=sample_dir
+    )
+
+    return command
 
 def picard_mark_duplicates(work_dir, bam, contig, sample_id, sample_dir):
     sample_dir = os.path.abspath(sample_dir)
@@ -58,7 +84,13 @@ def picard_mark_duplicates(work_dir, bam, contig, sample_id, sample_dir):
 
 @bash_app
 def index_bam_app(executable, bam, outputs=[], stdout=parsl.AUTO_LOGNAME, stderr=parsl.AUTO_LOGNAME):
-    return executable + ' {1} {outputs[1]} {outputs[0]}'
+    command = '{exe} {bam} {index} {log}'.format(
+        exe=executable,
+        bam=bam,
+        index=outputs[0],
+        log=outputs[1]
+    )
+    return command
 
 def index_bam(work_dir, bam):
     contigIndexStr = bam.filepath;
@@ -66,14 +98,23 @@ def index_bam(work_dir, bam):
     contigDupBamBaiLog = "{}.bai.log".format(contigIndexStr)
 
     executable = os.path.join(work_dir, SwagStrings.wrapper_dir, 'IndexBam.sh')
-    future = index_bam_app(executable, bam, outputs=[contigDupBamBaiLog, contigDupBamBai])
+    future = index_bam_app(executable, bam, outputs=[contigDupBamBai, contigDupBamBaiLog])
 
-    return future.outputs[1]
+    return future.outputs[0]
 
 @bash_app
 def contig_merge_sort_app(executable, sample_id, sample_dir, inputs=[], outputs=[], stdout=parsl.AUTO_LOGNAME, stderr=parsl.AUTO_LOGNAME):
-    bams = ' '.join([str(i) for i in inputs])
-    return executable + ' {outputs[1]} {outputs[0]} {1} {2} ' + bams
+    log, bam, _ = outputs
+
+    command = '{exe} {bam} {log} {sample_id} {sample_dir} {bams}'.format(
+        exe=executable,
+        bam=bam,
+        log=log,
+        sample_id=sample_id,
+        sample_dir=sample_dir,
+        bams=' '.join([str(i) for i in inputs])
+    )
+    return command
 
 def contig_merge_sort(work_dir, bams, sample_dir, sample_id):
     genoMergeBamIndex = "{}/{}.geno.merged.bam.bai".format(sample_dir, sample_id)
@@ -102,15 +143,18 @@ def PlatypusGerm(work_dir, sample_id, sample_dir, bam, bam_index, coords, output
 
 @bash_app(executors=['threads'])
 def concat_vcf_app(executable, sample_id, sample_dir, inputs=[], outputs=[], stdout=parsl.AUTO_LOGNAME, stderr=parsl.AUTO_LOGNAME):
-    vcfs = ' '.join([i.filepath for i in inputs])
+    command = '{exe} {out_vcf} {log} {sample_id} {sample_dir} {in_vcfs}'.format(
+        executable=os.path.join(work_dir, SwagStrings.wrapper_dir, 'ConcatVcf.sh'),
+        out_vcf="{}/{}.merged.{}.vcf".format(sample_dir, sample_id, genotyper),
+        log="{}/{}.merged.{}.log".format(sample_dir, sample_id, genotyper),
+        sample_id=sample_id,
+        sample_dir=sample_dir,
+        in_vcfs=' '.join([i.filepath for i in inputs])
+    )
 
-    return executable + ' {outputs[0]} {outputs[1]} {1} {2} ' + vcfs
+    return command
 
 def concat_vcf(work_dir, sample_id, sample_dir, genotyper, vcfs):
-    concatenated_vcf = "{}/{}.merged.{}.vcf".format(sample_dir, sample_id, genotyper)
-    log = "{}/{}.merged.{}.log".format(sample_dir, sample_id, genotyper)
-    executable = os.path.join(work_dir, SwagStrings.wrapper_dir, 'ConcatVcf.sh')
-
     concat_vcf_app(executable, sample_id, sample_dir, inputs=vcfs, outputs=[concatenated_vcf, log]).result()
 
 

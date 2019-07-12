@@ -84,7 +84,7 @@ def main(args=None):
     workflow_wrappers_options = {
         'tmp_dir': config.tmp,
         'env_PATH': os.environ['PATH'],
-        'env_LD_LIBRARY_PATH': os.environ['LD_LIBRARY_PATH'],
+        'env_LD_LIBRARY_PATH': os.environ.get('LD_LIBRARY_PATH', ''),
         'exe_config': exe_config,
         'ref_config': ref_config,
         'gc_flag': gc_flag,

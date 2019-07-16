@@ -16,7 +16,7 @@ setup(
     install_requires=[
         'six',
         'cerberus',
-        "parsl@https://github.com/Parsl/archive/master.zip"
+        "parsl"
     ],
     package_data={
         'swag': ['util_scripts/*']

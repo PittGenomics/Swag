@@ -19,7 +19,7 @@ Install Swag::
 Run the demo::
 
     $ cd examples/align
-    $ wget http://www.crc.nd.edu/~awoodard/human_g1k_v37.fasta.gz -O references/human_g1k_v37.fasta.gz
-    $ gunzip references/human_g1k_v37.fasta.gz
+    $ wget http://www.crc.nd.edu/~awoodard/references.tar.gz
+    $ tar -xf references.tar.gz
     $ swag install-env
     $ swag run config.py
